@@ -31,7 +31,7 @@ class Password(BaseModel):
 def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
     query_user = """
         INSERT INTO usuarios (mail, nickname, habilitado, nombre, direccion, avatar)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?, ?)
     """
     ejecutar_consulta(query_user, (
         usuario.mail,
@@ -42,10 +42,9 @@ def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
         usuario.avatar
     ))
 
-    # Obtener el ID del usuario insertado
-    id_user = ejecutar_consulta("SELECT LAST_INSERT_ID() as id", fetch=True)[0]['id']
+    id_user = ejecutar_consulta("SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC", fetch=True)[0]['id']
 
-    query_pass = "INSERT INTO passwords (idpassword, password) VALUES (%s, %s)"
+    query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
     ejecutar_consulta(query_pass, (id_user, password))
 
     return id_user
@@ -53,17 +52,16 @@ def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
 
 # Buscar usuario por ID (con datos de alumno y contraseña)
 def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
-    # Buscar datos base del usuario
-    query_user = "SELECT * FROM usuarios WHERE idUsuario = %s"
+    query_user = "SELECT * FROM usuarios WHERE idUsuario = ?"
     usuario = ejecutar_consulta(query_user, (id_usuario,), fetch=True)
     
     if not usuario:
         return None
 
-    user_data = dict(usuario[0])  # Convertimos a dict para agregar campos opcionales
+    user_data = dict(usuario[0]) 
 
     # Buscar password
-    query_pass = "SELECT password FROM passwords WHERE idpassword = %s"
+    query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
     pass_result = ejecutar_consulta(query_pass, (id_usuario,), fetch=True)
     if pass_result:
         user_data['password'] = pass_result[0]['password']
@@ -71,19 +69,18 @@ def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
     # Buscar si es alumno
     query_alumno = """
         SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
-        FROM alumnos WHERE idAlumno = %s
+        FROM alumnos WHERE idAlumno = ?
     """
     alumno_result = ejecutar_consulta(query_alumno, (id_usuario,), fetch=True)
     if alumno_result:
-        user_data.update(alumno_result[0])  # Solo agregamos si existen datos
+        user_data.update(alumno_result[0]) 
 
     return user_data
 
 
 # Buscar usuario por mail
 def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
-    # Buscar usuario por mail
-    query_user = "SELECT * FROM usuarios WHERE mail = %s"
+    query_user = "SELECT * FROM usuarios WHERE mail = ?"
     usuario = ejecutar_consulta(query_user, (mail,), fetch=True)
     
     if not usuario:
@@ -92,16 +89,16 @@ def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
     user_data = dict(usuario[0])
     id_usuario = user_data['idUsuario']
 
-    # Password
-    query_pass = "SELECT password FROM passwords WHERE idpassword = %s"
+
+    query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
     pass_result = ejecutar_consulta(query_pass, (id_usuario,), fetch=True)
     if pass_result:
         user_data['password'] = pass_result[0]['password']
 
-    # Alumno
+
     query_alumno = """
         SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
-        FROM alumnos WHERE idAlumno = %s
+        FROM alumnos WHERE idAlumno = ?
     """
     alumno_result = ejecutar_consulta(query_alumno, (id_usuario,), fetch=True)
     if alumno_result:
@@ -115,7 +112,7 @@ def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
 def upgradear_a_alumno(alumno: Alumno) -> bool:
     query = """
         INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?, ?)
     """
     ejecutar_consulta(query, (
         alumno.idAlumno,
@@ -131,7 +128,7 @@ def upgradear_a_alumno(alumno: Alumno) -> bool:
 # Cambiar contraseña
 def cambiar_contrasena(pass_obj: Password) -> bool:
     query = """
-        UPDATE passwords SET password = %s WHERE idpassword = %s
+        UPDATE passwords SET password = ? WHERE idpassword = ?
     """
     ejecutar_consulta(query, (pass_obj.password, pass_obj.idpassword))
     return True

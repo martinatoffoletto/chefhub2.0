@@ -1,41 +1,55 @@
-from typing import Optional
-from pydantic import BaseModel, constr, condecimal
-from datetime import date, datetime
+from typing import List, Dict, Optional
+from pydantic import BaseModel
+from datetime import datetime
+from app.config.db import ejecutar_consulta
 
-class AsistenciaCurso(BaseModel):
-    id_asistencia: Optional[int]
-    id_alumno: int
-    id_cronograma: int
-    fecha: Optional[datetime]
-#CRUD
-
-"""
-async def crear_inscripcion(inscripcion: Inscripcion, inscripciones_collection):
-    inscripcion_dict = inscripcion.model_dump()
-    result = await inscripciones_collection.insert_one(inscripcion_dict)
-    inscripcion_dict["_id"] = str(result.inserted_id)
-    return inscripcion_dict
+class AsistenciaCursos(BaseModel):
+    idAsistencia: Optional[int] = None
+    idAlumno: int
+    idCronograma: int
+    fecha: Optional[datetime] = None
 
 
-async def obtener_inscripcion_por_id(inscripcion_id: str, inscripciones_collection):
-    return await inscripciones_collection.find_one({"_id": ObjectId(inscripcion_id)})
+# CRUD
 
-
-async def eliminar_inscripcion(inscripcion_id: str, inscripciones_collection):
-    result = await inscripciones_collection.delete_one({"_id": ObjectId(inscripcion_id)})
-    return result.deleted_count > 0
-
-#obtener inscripciones por alumno
-async def obtener_inscripciones_por_alumno(alumno_id: str, inscripciones_collection):
-    inscripcion=await inscripciones_collection.find({"alumno_id": alumno_id}).to_list(length=None)
-    print("Inscripciones encontradas:", inscripcion)
-    return inscripcion
-
-#agregar asistencia
-async def agregar_asistencia(inscripcion_id: str, asistencia: str, inscripciones_collection):
-    result = await inscripciones_collection.update_one(
-        {"_id": ObjectId(inscripcion_id)},
-        {"$addToSet": {"asistencia": asistencia}}
+def crear_asistencia(asistencia: AsistenciaCursos) -> Dict:
+    query = """INSERT INTO asistenciaCursos 
+               (idAlumno, idCronograma, fecha) 
+               VALUES (?, ?, ?)"""
+    params = (
+        asistencia.idAlumno,
+        asistencia.idCronograma,
+        asistencia.fecha
     )
-    return result.modified_count > 0
-    """
+    ejecutar_consulta(query, params)
+    # Obtener el último id insertado
+    result = ejecutar_consulta("SELECT TOP 1 * FROM asistenciaCursos ORDER BY idAsistencia DESC", fetch=True)
+    return result[0] if result else None
+
+def obtener_asistencia_por_id(id_asistencia: int) -> Optional[Dict]:
+    query = "SELECT * FROM asistenciaCursos WHERE idAsistencia = ?"
+    result = ejecutar_consulta(query, (id_asistencia,), fetch=True)
+    return result[0] if result else None
+
+def obtener_asistencias_por_cronograma(id_cronograma: int) -> List[Dict]:
+    query = "SELECT * FROM asistenciaCursos WHERE idCronograma = ?"
+    result = ejecutar_consulta(query, (id_cronograma,), fetch=True)
+    return result if result else []
+
+def obtener_asistencias_por_alumno(id_alumno: int) -> List[Dict]:
+    query = "SELECT * FROM asistenciaCursos WHERE idAlumno = ?"
+    result = ejecutar_consulta(query, (id_alumno,), fetch=True)
+    return result if result else []
+
+def eliminar_inscripcion(id_alumno: int, id_cronograma: int) -> bool:
+    query = "DELETE FROM asistenciaCursos WHERE idAlumno = ? AND idCronograma = ?"
+    ejecutar_consulta(query, (id_alumno, id_cronograma))
+    return True  # Asume que la operación fue exitosa
+
+def obtener_cronogramas_por_alumno(id_alumno: int) -> List[Dict]:
+    query = """SELECT DISTINCT c.* 
+               FROM cronogramaCursos c
+               JOIN asistenciaCursos a ON c.idCronograma = a.idCronograma
+               WHERE a.idAlumno = ?"""
+    result = ejecutar_consulta(query, (id_alumno,), fetch=True)
+    return result if result else []

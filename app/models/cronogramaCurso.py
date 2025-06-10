@@ -1,58 +1,72 @@
-from typing import Optional
-from pydantic import BaseModel, constr, condecimal
-from datetime import date, datetime
+from typing import List, Dict, Optional
+from pydantic import BaseModel
+from datetime import date
+from app.config.db import ejecutar_consulta
 
-class CronogramaCurso(BaseModel):
-    id_cronograma: Optional[int]
-    id_sede: int
-    id_curso: int
-    fecha_inicio: Optional[date]
-    fecha_fin: Optional[date]
-    vacantes_disponibles: Optional[int]
+class CronogramaCursos(BaseModel):
+    idCronograma: Optional[int] = None
+    idSede: int
+    idCurso: int
+    fechaInicio: Optional[date] = None
+    fechaFin: Optional[date] = None
+    vacantesDisponibles: Optional[int] = None
+
 
 # CRUD. Queries para acceder a la base de datos
-"""
-async def crear_oferta_curso(oferta: OfertaCurso, ofertas_collection):
-    oferta_dict = oferta.model_dump()
-    result = await ofertas_collection.insert_one(oferta_dict)
-    oferta_dict["_id"] = result.inserted_id
-    return oferta_dict
 
-async def listar_ofertas_curso(ofertas_collection):
-    return await ofertas_collection.find().to_list(length=None)
-
-#obtener oferta por id
-async def obtener_oferta_curso_por_id(oferta_id: str, ofertas_collection):
-    return await ofertas_collection.find_one({"_id": ObjectId(oferta_id)})
-
-async def actualizar_oferta_curso(oferta_id: str, oferta: OfertaCurso, ofertas_collection):
-    oferta_dict = oferta.model_dump()
-    result = await ofertas_collection.replace_one({"_id": ObjectId(oferta_id)}, oferta_dict)
-    return result.modified_count > 0
-
-async def eliminar_oferta_curso(oferta_id: str, ofertas_collection):
-    result = await ofertas_collection.delete_one({"_id": ObjectId(oferta_id)})
-    return result.deleted_count > 0
-
-async def obtener_ofertas_por_curso(curso_id: str, ofertas_collection):
-    return await ofertas_collection.find({"curso_id": curso_id}).to_list(length=None)
-
-async def obtener_ofertas_por_sede(sede_id: str, ofertas_collection):
-    ofertas= await ofertas_collection.find({"sede_id": sede_id}).to_list(length=None)   
-    return ofertas
-
-#aumentar vacantes  
-async def aumentar_vacantes(oferta_id: str, ofertas_collection):
-    result = await ofertas_collection.update_one(
-        {"_id": ObjectId(oferta_id)},
-        {"$inc": {"vacantes": 1}}
+def crear_cronograma(cronograma: CronogramaCursos) -> Dict:
+    query = """INSERT INTO cronogramaCursos 
+               (idSede, idCurso, fechaInicio, fechaFin, vacantesDisponibles) 
+               VALUES (?, ?, ?, ?, ?)"""
+    params = (
+        cronograma.idSede,
+        cronograma.idCurso,
+        cronograma.fechaInicio,
+        cronograma.fechaFin,
+        cronograma.vacantesDisponibles
     )
-    return result.modified_count > 0
-#disminuir vacantes     
-async def disminuir_vacantes(oferta_id: str, ofertas_collection):
-    result = await ofertas_collection.update_one(
-        {"_id": ObjectId(oferta_id)},
-        {"$inc": {"vacantes": -1}}
-    )
-    return result.modified_count > 0
-"""
+    ejecutar_consulta(query, params)
+    # Obtener el último registro insertado
+    result = ejecutar_consulta("SELECT TOP 1 * FROM cronogramaCursos ORDER BY idCronograma DESC", fetch=True)
+    return result[0] if result else None
+
+def listar_cronogramas() -> List[Dict]:
+    query = "SELECT * FROM cronogramaCursos"
+    result = ejecutar_consulta(query, fetch=True)
+    return result if result else []
+
+def obtener_cronograma_por_id(id_cronograma: int) -> Optional[Dict]:
+    query = "SELECT * FROM cronogramaCursos WHERE idCronograma = ?"
+    result = ejecutar_consulta(query, (id_cronograma,), fetch=True)
+    return result[0] if result else None
+
+def obtener_cronogramas_por_curso(id_curso: int) -> List[Dict]:
+    query = "SELECT * FROM cronogramaCursos WHERE idCurso = ?"
+    result = ejecutar_consulta(query, (id_curso,), fetch=True)
+    return result if result else []
+
+def obtener_cronogramas_por_sede(id_sede: int) -> List[Dict]:
+    query = "SELECT * FROM cronogramaCursos WHERE idSede = ?"
+    result = ejecutar_consulta(query, (id_sede,), fetch=True)
+    return result if result else []
+
+def aumentar_vacantes(id_cronograma: int, cantidad: int) -> Optional[Dict]:
+    query = """UPDATE cronogramaCursos 
+               SET vacantesDisponibles = vacantesDisponibles + ? 
+               WHERE idCronograma = ?"""
+    ejecutar_consulta(query, (cantidad, id_cronograma))
+    # Devolver el registro actualizado
+    result = ejecutar_consulta("SELECT * FROM cronogramaCursos WHERE idCronograma = ?", (id_cronograma,), fetch=True)
+    return result[0] if result else None
+
+def disminuir_vacantes(id_cronograma: int, cantidad: int) -> Optional[Dict]:
+    query = """UPDATE cronogramaCursos 
+               SET vacantesDisponibles = CASE 
+                   WHEN vacantesDisponibles - ? < 0 THEN 0
+                   ELSE vacantesDisponibles - ?
+               END
+               WHERE idCronograma = ?"""
+    ejecutar_consulta(query, (cantidad, cantidad, id_cronograma))
+    # Devolver el registro actualizado
+    result = ejecutar_consulta("SELECT * FROM cronogramaCursos WHERE idCronograma = ?", (id_cronograma,), fetch=True)
+    return result[0] if result else None

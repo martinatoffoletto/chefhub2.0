@@ -1,171 +1,435 @@
-from typing import Optional
-from pydantic import BaseModel, constr, condecimal
+from app.config.db import ejecutar_consulta
+from typing import List, Optional, Union, Dict
+from pydantic import BaseModel, Field, constr
+from enum import Enum
 
 
 ###################acessos a bd agregar actualizar, eliminar, etc###############################
-"""
 class TipoReceta(BaseModel):
-    id_tipo: Optional[int]
-    descripcion: Optional[constr(max_length=250)]
+    idTipo: Optional[int]
+    descripcion: Optional[str]
 
-class EstadoReceta(BaseModel):
-    id_receta: Optional[int]
-    descripcion: Optional[constr(max_length=250)]
 
-class Receta(BaseModel):
-    id_receta: Optional[int]
-    id_usuario: Optional[int]
-    nombre_receta: Optional[constr(max_length=500)]
-    descripcion_receta: Optional[constr(max_length=1000)]
-    foto_principal: Optional[constr(max_length=300)]  # URL
-    porciones: Optional[int]
-    cantidad_personas: Optional[int]
-    id_tipo: Optional[int]
-
-class EstadoReceta(BaseModel):
-    id_estado: Optional[int]        # ID único del estado (PK)
-    id_receta: int                  # FK a Receta
-    estado: Literal['aprobada', 'rechazada', 'pendiente']
-    
-    
 class Ingrediente(BaseModel):
-    id_ingrediente: Optional[int]
-    nombre: Optional[constr(max_length=200)]
+    idIngrediente: Optional[int]
+    nombre: Optional[str]
 
 
 class Unidad(BaseModel):
-    id_unidad: Optional[int]
-    descripcion: constr(max_length=50)
-
-
-class Utilizado(BaseModel):
-    id_utilizado: Optional[int]
-    id_receta: Optional[int]
-    id_ingrediente: Optional[int]
-    cantidad: Optional[int]
-    id_unidad: Optional[int]
-    observaciones: Optional[constr(max_length=500)]
+    idUnidad: Optional[int]
+    descripcion: Optional[str]
 
 
 class Conversion(BaseModel):
-    id_conversion: Optional[int]
-    id_unidad_origen: int
-    id_unidad_destino: int
-    factor_conversiones: Optional[float]
-
-
-class Paso(BaseModel):
-    id_paso: Optional[int]
-    id_receta: Optional[int]
-    nro_paso: Optional[int]
-    texto: Optional[constr(max_length=4000)]
+    idConversion: Optional[int]
+    idUnidadOrigen: int
+    idUnidadDestino: int
+    factorConversiones: float
 
 
 class Foto(BaseModel):
-    id_foto: Optional[int]
-    id_receta: int
-    url_foto: Optional[constr(max_length=300)]
-    extension: Optional[constr(max_length=5)]
+    idfoto: Optional[int]
+    idReceta: int
+    urlFoto: str
+    extension: Optional[str]
+
+
+class MultimediaTipo(str, Enum):
+    foto = 'foto'
+    video = 'video'
+    audio = 'audio'
 
 
 class Multimedia(BaseModel):
-    id_contenido: Optional[int]
-    id_paso: int
-    tipo_contenido: Optional[constr(max_length=10)]  # foto, video, audio
-    extension: Optional[constr(max_length=5)]
-    url_contenido: Optional[constr(max_length=300)]
-
-#CRUD y consultas a la base de datos
-async def crear_receta(receta: Receta,recetas_collection):
-    receta_dict = receta.model_dump()
-    result = await recetas_collection.insert_one(receta_dict)
-    receta_dict["_id"] = str(result.inserted_id)
-    return receta_dict
- 
-async def listar_recetas(
-    recetas_collection,
-    tipo: Optional[str] = None,
-    usuario: Optional[str] = None,
-    nombre: Optional[str] = None,
-    contiene_ingrediente: Optional[str] = None,
-    excluye_ingrediente: Optional[str] = None,
-    sort: str = "nombre",
-    order: str = "asc",
-    limit: int = 10000
-):
-    query = {"estado": "Aprobada"}
-
-    if contiene_ingrediente and excluye_ingrediente:
-        query["$and"] = [
-            {"ingredientes": {"$elemMatch": {"nombre": {"$regex": contiene_ingrediente, "$options": "i"}}}},
-            {"ingredientes": {"$not": {"$elemMatch": {"nombre": {"$regex": excluye_ingrediente, "$options": "i"}}}}}
-        ]
-    elif contiene_ingrediente:
-        query["ingredientes.nombre"] = {"$regex": contiene_ingrediente, "$options": "i"} 
-    elif excluye_ingrediente:
-        query["ingredientes"] = {"$not": {"$elemMatch": {"nombre": {"$regex": excluye_ingrediente, "$options": "i"}}}}
+    idContenido: Optional[int]
+    idPaso: int
+    tipo_contenido: MultimediaTipo
+    extension: Optional[str]
+    urlContenido: str
 
 
-    if tipo:
-        query["tipo"] ={"$regex": tipo, "$options": "i"} 
-
-    if usuario:
-        query["usuarioCreador"] = {"$regex": usuario, "$options": "i"} 
-        
-    if nombre:
-        query["nombre"] = {"$regex": nombre, "$options": "i"}  # "i" para que sea case-insensitive
+class Paso(BaseModel):
+    idPaso: Optional[int]
+    idReceta: int
+    nroPaso: int
+    texto: str
 
 
-    sort_order = ASCENDING if order == "asc" else DESCENDING
+class Utilizado(BaseModel):
+    idUtilizado: Optional[int]
+    idReceta: int
+    idIngrediente: int
+    cantidad: int
+    idUnidad: int
+    observaciones: Optional[str] = None
 
-    cursor = recetas_collection.find(query).sort(sort, sort_order).limit(limit)
-    resultados = await cursor.to_list(length=limit)
-    return resultados
-    
+class EstadoEnum(str, Enum):
+    aprobado = 'aprobado'
+    rechazado = 'rechazado'
+    pendiente = 'pendiente'
 
+class EstadoReceta(BaseModel):
+    idEstado: Optional[int] 
+    idReceta: int #fk hacia receta.idReceta
+    estado: EstadoEnum
 
-async def obtener_receta_por_id(receta_id: str,recetas_collection):
-    return await recetas_collection.find_one({"_id": ObjectId(receta_id)})
-
-async def actualizar_receta(receta_id: str, receta_data: Receta, collection):
-    await collection.update_one(
-        {"_id": ObjectId(receta_id)},
-        {"$set": receta_data.model_dump()} 
-    )
-
-async def eliminar_receta(receta_id: str,recetas_collection):
-    result = await recetas_collection.delete_one({"_id": ObjectId(receta_id)})
-    return result.deleted_count > 0
-
-#buscar por parte nombre (varias recetas)
-async def buscar_recetas_por_nombre_parcial(value: str, recetas_collection):
-    return await recetas_collection.find({
-        "nombre": {"$regex": value, "$options": "i"}
-    }).to_list(length=None)
-
-#buscar por nombre exacto, tipo o usuarioCreador (x nombre , por tipo y usuariosCreador devuelve varias)
-async def buscar_recetas_por_campo_exacto(campo: str, valor: str, recetas_collection):
-
-    return await recetas_collection.find({
-        campo: valor
-    }).to_list(length=None)
+class Receta(BaseModel):
+    idReceta: Optional[int]
+    idUsuario: int
+    nombreReceta: str
+    descripcionReceta: Optional[str] = None
+    fotoPrincipal: Optional[str] = None
+    porciones: Optional[int] = None
+    cantidadPersonas: Optional[int] = None
+    idTipo: int
 
 
-async def buscar_por_ingrediente(nombre_ingrediente: str, recetas_collection):
-    return await recetas_collection.find({
-        "ingredientes.nombre": {"$regex": nombre_ingrediente, "$options": "i"}
-    }).to_list(length=None)
+#CRUD
 
-async def excluir_ingrediente(nombre_ingrediente: str, recetas_collection):
-    return await recetas_collection.find({
-        "ingredientes": {
-            "$not": {
-                "$elemMatch": {
-                    "nombre": {"$regex": nombre_ingrediente, "$options": "i"}
-                }
-            }
-        }
-    }).to_list(length=None)
+from typing import List, Dict, Optional
+from datetime import datetime
+import re
+from enum import Enum
+from pydantic import BaseModel
 
-    
+def crear_receta_completa(
+    receta_data: Dict,
+    ingredientes_data: List[Dict],
+    pasos_data: List[Dict],
+    multimedia_data: List[Dict]
+) -> Dict:
     """
+    Crea una receta completa con todos sus componentes:
+    - Datos básicos de la receta
+    - Ingredientes (creando nuevos si no existen)
+    - Pasos de preparación
+    - Multimedia (fotos, videos)
+    
+    El estado inicial siempre es 'pendiente'
+    """
+    try:
+        # 1. Crear la receta básica
+        query_receta = """
+            INSERT INTO Receta (
+                idUsuario, nombreReceta, descripcionReceta, 
+                fotoPrincipal, porciones, cantidadPersonas, idTipo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params_receta = (
+            receta_data['idUsuario'],
+            receta_data['nombreReceta'],
+            receta_data.get('descripcionReceta'),
+            receta_data.get('fotoPrincipal'),
+            receta_data.get('porciones'),
+            receta_data.get('cantidadPersonas'),
+            receta_data['idTipo']
+        )
+        ejecutar_consulta(query_receta, params_receta)
+        receta_creada = ejecutar_consulta("SELECT TOP 1 * FROM Receta ORDER BY idReceta DESC", fetch=True)
+        if not receta_creada:
+            raise Exception("No se pudo crear la receta")
+        id_receta = receta_creada[0]['idReceta']
+
+        # 2. Establecer estado inicial como 'pendiente'
+        query_estado = """
+            INSERT INTO EstadoReceta (idReceta, estado)
+            VALUES (?, ?)
+        """
+        ejecutar_consulta(query_estado, (id_receta, 'pendiente'))
+
+        # 3. Procesar ingredientes
+        for ingrediente in ingredientes_data:
+            # Verificar si el ingrediente existe
+            query_ingrediente = "SELECT idIngrediente FROM Ingrediente WHERE nombre = ?"
+            ingrediente_existente = ejecutar_consulta(
+                query_ingrediente, 
+                (ingrediente['nombre'],), 
+                fetch=True
+            )
+            id_ingrediente = None
+            if ingrediente_existente:
+                id_ingrediente = ingrediente_existente[0]['idIngrediente']
+            else:
+                # Crear nuevo ingrediente
+                query_nuevo_ing = """
+                    INSERT INTO Ingrediente (nombre) 
+                    VALUES (?)
+                """
+                ejecutar_consulta(query_nuevo_ing, (ingrediente['nombre'],))
+                nuevo_ing = ejecutar_consulta("SELECT TOP 1 idIngrediente FROM Ingrediente ORDER BY idIngrediente DESC", fetch=True)
+                id_ingrediente = nuevo_ing[0]['idIngrediente']
+
+            # Crear relación Utilizado
+            query_utilizado = """
+                INSERT INTO Utilizado (
+                    idReceta, idIngrediente, cantidad, idUnidad, observaciones
+                ) VALUES (?, ?, ?, ?, ?)
+            """
+            params_utilizado = (
+                id_receta,
+                id_ingrediente,
+                ingrediente['cantidad'],
+                ingrediente['idUnidad'],
+                ingrediente.get('observaciones')
+            )
+            ejecutar_consulta(query_utilizado, params_utilizado)
+
+        # 4. Procesar pasos
+        for paso in pasos_data:
+            query_paso = """
+                INSERT INTO Paso (idReceta, nroPaso, texto)
+                VALUES (?, ?, ?)
+            """
+            ejecutar_consulta(query_paso, (id_receta, paso['nroPaso'], paso['texto']))
+            paso_creado = ejecutar_consulta("SELECT TOP 1 idPaso FROM Paso ORDER BY idPaso DESC", fetch=True)
+            id_paso = paso_creado[0]['idPaso']
+
+            # 5. Procesar multimedia asociada a pasos
+            for media in multimedia_data:
+                if media['idPaso'] == paso['idPaso']:
+                    query_media = """
+                        INSERT INTO Multimedia (
+                            idPaso, tipo_contenido, extension, urlContenido
+                        ) VALUES (?, ?, ?, ?)
+                    """
+                    ejecutar_consulta(
+                        query_media,
+                        (
+                            id_paso,
+                            media['tipo_contenido'].value,
+                            media.get('extension'),
+                            media['urlContenido']
+                        )
+                    )
+
+        # Obtener y retornar la receta completa creada
+        return obtener_receta_completa(id_receta)
+
+    except Exception as e:
+        print(f"Error al crear receta: {str(e)}")
+        raise e
+
+def obtener_receta_completa(id_receta: int) -> Optional[Dict]:
+    """
+    Obtiene todos los datos de una receta incluyendo:
+    - Datos básicos
+    - Ingredientes con cantidades y unidades
+    - Pasos con su multimedia asociada
+    - Estado actual
+    - Fotos principales
+    """
+    try:
+        # 1. Obtener datos básicos de la receta
+        query_receta = "SELECT * FROM Receta WHERE idReceta = ?"
+        receta = ejecutar_consulta(query_receta, (id_receta,), fetch=True)
+        if not receta:
+            return None
+        
+        receta_data = receta[0]
+        
+        # 2. Obtener estado actual
+        query_estado = """
+            SELECT TOP 1 estado FROM EstadoReceta 
+            WHERE idReceta = ? 
+            ORDER BY idEstado DESC
+        """
+        estado = ejecutar_consulta(query_estado, (id_receta,), fetch=True)
+        receta_data['estado'] = estado[0]['estado'] if estado else None
+        
+        # 3. Obtener ingredientes con unidades
+        query_ingredientes = """
+            SELECT u.*, i.nombre as nombre_ingrediente, ut.cantidad, ut.observaciones
+            FROM Utilizado ut
+            JOIN Ingrediente i ON ut.idIngrediente = i.idIngrediente
+            JOIN Unidad u ON ut.idUnidad = u.idUnidad
+            WHERE ut.idReceta = ?
+        """
+        ingredientes = ejecutar_consulta(query_ingredientes, (id_receta,), fetch=True)
+        receta_data['ingredientes'] = ingredientes if ingredientes else []
+        
+        # 4. Obtener pasos con multimedia
+        query_pasos = """
+            SELECT p.* FROM Paso p
+            WHERE p.idReceta = ?
+            ORDER BY p.nroPaso
+        """
+        pasos = ejecutar_consulta(query_pasos, (id_receta,), fetch=True)
+        for paso in pasos:
+            query_multimedia = """
+                SELECT tipo_contenido, urlContenido, extension
+                FROM Multimedia
+                WHERE idPaso = ?
+            """
+            multimedia = ejecutar_consulta(query_multimedia, (paso['idPaso'],), fetch=True)
+            paso['multimedia'] = multimedia if multimedia else []
+        receta_data['pasos'] = pasos if pasos else []
+
+        # 5. Obtener fotos adicionales (si existen)
+        query_fotos = "SELECT * FROM Foto WHERE idReceta = ?"
+        fotos = ejecutar_consulta(query_fotos, (id_receta,), fetch=True)
+        receta_data['fotos'] = fotos if fotos else []
+
+        return receta_data
+
+    except Exception as e:
+        print(f"Error al obtener receta: {str(e)}")
+        raise e
+
+def listar_recetas(
+    tipo_receta: Optional[int] = None,
+    id_usuario: Optional[int] = None,
+    nombre: Optional[str] = None,
+    tiene_ingrediente: Optional[int] = None,
+    no_tiene_ingrediente: Optional[int] = None,
+    ordenar_por: str = 'fecha_creacion',
+    orden: str = 'DESC',
+    limite: int = 10,
+    offset: int = 0
+) -> List[Dict]:
+    """
+    Lista recetas con múltiples filtros posibles:
+    - Por tipo de receta
+    - Por usuario creador
+    - Por nombre (coincidencia parcial)
+    - Que contengan o no ciertos ingredientes
+    - Ordenación por diferentes campos
+    - Paginación
+    """
+    try:
+        query = """
+            SELECT r.*, 
+                   (SELECT TOP 1 estado FROM EstadoReceta er 
+                    WHERE er.idReceta = r.idReceta 
+                    ORDER BY er.idEstado DESC) as estado,
+                   t.descripcion as tipo_receta_desc
+            FROM Receta r
+            JOIN TipoReceta t ON r.idTipo = t.idTipo
+            WHERE 1=1
+        """
+        params = []
+
+        # Aplicar filtros
+        if tipo_receta:
+            query += " AND r.idTipo = ?"
+            params.append(tipo_receta)
+
+        if id_usuario:
+            query += " AND r.idUsuario = ?"
+            params.append(id_usuario)
+
+        if nombre:
+            query += " AND r.nombreReceta LIKE ?"
+            params.append(f"%{nombre}%")
+
+        if tiene_ingrediente:
+            query += """
+                AND EXISTS (
+                    SELECT 1 FROM Utilizado u 
+                    WHERE u.idReceta = r.idReceta 
+                    AND u.idIngrediente = ?
+                )
+            """
+            params.append(tiene_ingrediente)
+
+        if no_tiene_ingrediente:
+            query += """
+                AND NOT EXISTS (
+                    SELECT 1 FROM Utilizado u 
+                    WHERE u.idReceta = r.idReceta 
+                    AND u.idIngrediente = ?
+                )
+            """
+            params.append(no_tiene_ingrediente)
+
+        # Ordenación
+        orden_campos = {
+            'nombre': 'r.nombreReceta',
+            'fecha': 'r.fechaCreacion',
+            'popularidad': '(SELECT COUNT(*) FROM Favoritos WHERE idReceta = r.idReceta)'
+        }
+        campo_orden = orden_campos.get(ordenar_por, 'r.fechaCreacion')
+        query += f" ORDER BY {campo_orden} {orden}"
+
+        # Paginación (SQL Server: OFFSET ... ROWS FETCH NEXT ... ROWS ONLY)
+        query += " OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+        params.extend([offset, limite])
+
+        recetas = ejecutar_consulta(query, tuple(params), fetch=True)
+
+        # Para cada receta, agregar información básica de ingredientes
+        for receta in recetas:
+            query_ingredientes = """
+                SELECT TOP 3 i.nombre 
+                FROM Utilizado u
+                JOIN Ingrediente i ON u.idIngrediente = i.idIngrediente
+                WHERE u.idReceta = ?
+            """
+            ingredientes = ejecutar_consulta(
+                query_ingredientes, 
+                (receta['idReceta'],), 
+                fetch=True
+            )
+            receta['ingredientes'] = [ing['nombre'] for ing in ingredientes] if ingredientes else []
+
+        return recetas if recetas else []
+
+    except Exception as e:
+        print(f"Error al listar recetas: {str(e)}")
+        raise e
+
+def buscar_recetas_por_nombre(nombre: str, limite: int = 10) -> List[Dict]:
+    """
+    Busca recetas por nombre usando LIKE case insensitive
+    """
+    try:
+        if not nombre.strip():
+            return []
+        query = """
+            SELECT r.*, 
+                   (SELECT TOP 1 estado FROM EstadoReceta er 
+                    WHERE er.idReceta = r.idReceta 
+                    ORDER BY er.idEstado DESC) as estado
+            FROM Receta r
+            WHERE r.nombreReceta LIKE ?
+            ORDER BY r.nombreReceta
+            OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
+        """
+        recetas = ejecutar_consulta(query, (f"%{nombre}%", limite), fetch=True)
+        return recetas if recetas else []
+    except Exception as e:
+        print(f"Error en búsqueda por nombre: {str(e)}")
+        raise e
+
+def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional[Dict]:
+    """
+    Busca una receta exacta por usuario y nombre (exact match)
+    """
+    try:
+        query = """
+            SELECT r.*, 
+                   (SELECT TOP 1 estado FROM EstadoReceta er 
+                    WHERE er.idReceta = r.idReceta 
+                    ORDER BY er.idEstado DESC) as estado
+            FROM Receta r
+            WHERE r.idUsuario = ? AND r.nombreReceta = ?
+        """
+        receta = ejecutar_consulta(query, (id_usuario, nombre), fetch=True)
+        return receta[0] if receta else None
+    except Exception as e:
+        print(f"Error en búsqueda exacta: {str(e)}")
+        raise e
+
+def actualizar_estado_receta(id_receta: int, estado: EstadoEnum) -> bool:
+    """
+    Actualiza el estado de una receta (aprobado, rechazado, pendiente)
+    """
+    try:
+        query = """
+            INSERT INTO EstadoReceta (idReceta, estado)
+            VALUES (?, ?)
+        """
+        ejecutar_consulta(query, (id_receta, estado.value))
+        return True
+    except Exception as e:
+        print(f"Error al actualizar estado: {str(e)}")
+        return False
