@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict
 from pydantic import BaseModel
-from app.config.db import ejecutar_consulta
+from app.config.db import ejecutar_consulta_async
+
 #clase principal
 
 
@@ -15,19 +16,19 @@ class Curso(BaseModel):
 
 #CRUD. consultas a la base de datos
 
-def listar_cursos() -> List[Dict]:
+async def listar_cursos() -> List[Dict]:
     query = "SELECT * FROM cursos"
-    result = ejecutar_consulta(query, fetch=True)
+    result = await ejecutar_consulta_async(query, fetch=True)
     return result if result else []
 
-def obtener_curso_por_id(id_curso: int) -> Optional[Dict]:
+async def obtener_curso_por_id(id_curso: int) -> Optional[Dict]:
     query = "SELECT * FROM cursos WHERE idCurso = ?"
-    result = ejecutar_consulta(query, (id_curso,), fetch=True)
+    result = await ejecutar_consulta_async(query, (id_curso,), fetch=True)
     return result[0] if result else None
 
-def buscar_curso_por_nombre(nombre: str) -> List[Dict]:
+async def buscar_curso_por_nombre(nombre: str) -> List[Dict]:
     # En SQL Server, usar LIKE para búsquedas por patrón
     query = "SELECT * FROM cursos WHERE descripcion LIKE ?"
     pattern = f"%{nombre}%"
-    result = ejecutar_consulta(query, (pattern,), fetch=True)
+    result = await ejecutar_consulta_async(query, (pattern,), fetch=True)
     return result if result else []

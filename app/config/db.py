@@ -1,61 +1,49 @@
-# En app/config/db.py
-
-import pyodbc
+import asyncodbc
 from typing import Any, Tuple, Optional, List, Dict, Union
 
-# Variables globales de configuración
-SERVER = "localhost\\SQLEXPRESS"
-DATABASE = "chefhub"
+# DSN de conexión
+DSN = (
+    "Driver={ODBC Driver 17 for SQL Server};"
+    "Server=localhost\\SQLEXPRESS;"
+    "Database=chefhub;"
+    "Trusted_Connection=yes;"
+)
 
-# Variable global para la conexión
-conexion = None
+# Pool de conexiones
+pool = None
 
-def conectar_bd():
-    global conexion
+# Función para iniciar la app
+async def startup():
+    global pool
+    print("Iniciando la conexión a la base de datos...")
+    pool = await asyncodbc.create_pool(dsn=DSN)
+
+# Función para cerrar la app
+async def shutdown():
+    global pool
+    print("Cerrando la conexión a la base de datos...")
+    pool.close()
+    await pool.wait_closed()
+
+# Función asíncrona para ejecutar consultas
+async def ejecutar_consulta_async(
+    query: str,
+    params: Optional[Tuple[Any, ...]] = None,
+    fetch: bool = False
+) -> Union[List[Dict[str, Any]], None]:
     try:
-        conexion = pyodbc.connect(
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={SERVER};"
-            f"DATABASE={DATABASE};"
-            f"Trusted_Connection=yes;"
-        )
-        print("Conexión exitosa a SQL Server")
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if params:
+                    await cursor.execute(query, params)
+                else:
+                    await cursor.execute(query)
+
+                if fetch:
+                    columns = [column[0] for column in cursor.description]
+                    rows = await cursor.fetchall()
+                    return [dict(zip(columns, row)) for row in rows]
+                return None
     except Exception as e:
-        print(f"Error al conectar a SQL Server: {e}")
-        conexion = None
-
-def cerrar_bd():
-    global conexion
-    if conexion is not None:
-        conexion.close()
-        print("Conexión cerrada")
-        conexion = None
-
-def get_conexion():
-    global conexion
-    if conexion is None:
-        conectar_bd()
-    return conexion
-
-def ejecutar_consulta(query: str, params: Optional[Tuple[Any, ...]] = None, fetch: bool = False) -> Union[List[Dict], None]:
-    conn = get_conexion()
-    try:
-        cursor = conn.cursor()
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-        if fetch:
-            columns = [column[0] for column in cursor.description]
-            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return results
-        else:
-            conn.commit()
-            return None
-    except Exception as e:
-        print(f"Error ejecutando consulta: {e}")
+        print(f"Error ejecutando consulta async: {e}")
         return None
-    finally:
-        cursor.close()
-
-conectar_bd()

@@ -1,4 +1,4 @@
-from fastapi import APIRouter,HTTPException, status, Depends, Body
+from fastapi import APIRouter, HTTPException, status, Depends, Body
 from app.services import auth_service
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -26,7 +26,7 @@ async def refresh_token(data: RefreshTokenRequest):
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
         
-        usuario = await auth_service.obtener_usuario_por_id(user_id, auth_service.get_usuarios_collection())
+        usuario = await auth_service.buscar_usuario_por_id(user_id)
         if not usuario:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
 
@@ -49,7 +49,6 @@ async def register():
 @router.put("/forgot_password")
 async def forgot_password():
     return {"message": "Forgot password endpoint"}
-
 
 @router.get("/alias_sugerido")
 async def alias_sugerido():

@@ -1,6 +1,6 @@
 from typing import Optional, Dict, List
 from pydantic import BaseModel
-from app.config.db import ejecutar_consulta
+from app.config.db import ejecutar_consulta_async
 
 class Sedes(BaseModel):
     idSede: Optional[int] = None
@@ -17,12 +17,12 @@ class Sedes(BaseModel):
 
 #CRUD
 
-def listar_sedes() -> List[Dict]:
+async def listar_sedes() -> List[Dict]:
     query = "SELECT * FROM sedes"
-    result = ejecutar_consulta(query, fetch=True)
+    result = await ejecutar_consulta_async(query, fetch=True)
     return result if result else []
 
-def obtener_sede_por_id(id_sede: int) -> Optional[Dict]:
+async def obtener_sede_por_id(id_sede: int) -> Optional[Dict]:
     query = "SELECT * FROM sedes WHERE idSede = ?"
-    result = ejecutar_consulta(query, (id_sede,), fetch=True)
+    result = await ejecutar_consulta_async(query, (id_sede,), fetch=True)
     return result[0] if result else None

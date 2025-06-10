@@ -10,7 +10,7 @@ router = APIRouter(prefix="/user", tags=["User"])
 ## Ver info usuario
 @router.get("/me")
 async def get_current_user(current_user=Depends(obtener_usuario_actual)):
-    return current_user
+    return await current_user
 
 
 """
@@ -52,12 +52,12 @@ async def delete_receta_favorita(receta_id,current_user=Depends(obtener_usuario_
 async def upgrade_alumno(datos_alumno,current_user=Depends(obtener_usuario_actual)):
     try:
         datos_alumno['idAlumno'] = current_user['idAlumno']
-        user_services.solicitar_upgrade_alumno(datos_alumno)
+        await user_services.solicitar_upgrade_alumno(datos_alumno)
     except user_services.DatosInvalidosError:
         raise HTTPException(status_code=400, detail="Datos incompletos o inválidos")
     except user_services.YaEsAlumnoError:
         raise HTTPException(status_code=403, detail="Ya es alumno")
-    return obtener_usuario_actual()
+    return await obtener_usuario_actual()
 
 """
 #registrar asistencia

@@ -1,8 +1,8 @@
-from app.config.db import ejecutar_consulta
-from typing import List, Optional, Union, Dict
-from pydantic import BaseModel, Field, constr
+from app.config.db import ejecutar_consulta_async
+from typing import List, Optional, Dict
+from pydantic import BaseModel
 from enum import Enum
-
+from datetime import datetime
 
 ###################acessos a bd agregar actualizar, eliminar, etc###############################
 class TipoReceta(BaseModel):
@@ -71,6 +71,7 @@ class EstadoEnum(str, Enum):
 class EstadoReceta(BaseModel):
     idEstado: Optional[int] 
     idReceta: int #fk hacia receta.idReceta
+    fecha_creacion: datetime
     estado: EstadoEnum
 
 class Receta(BaseModel):
@@ -86,13 +87,7 @@ class Receta(BaseModel):
 
 #CRUD
 
-from typing import List, Dict, Optional
-from datetime import datetime
-import re
-from enum import Enum
-from pydantic import BaseModel
-
-def crear_receta_completa(
+async def crear_receta_completa(
     receta_data: Dict,
     ingredientes_data: List[Dict],
     pasos_data: List[Dict],
@@ -124,8 +119,8 @@ def crear_receta_completa(
             receta_data.get('cantidadPersonas'),
             receta_data['idTipo']
         )
-        ejecutar_consulta(query_receta, params_receta)
-        receta_creada = ejecutar_consulta("SELECT TOP 1 * FROM Receta ORDER BY idReceta DESC", fetch=True)
+        await ejecutar_consulta_async(query_receta, params_receta)
+        receta_creada = await ejecutar_consulta_async("SELECT TOP 1 * FROM Receta ORDER BY idReceta DESC", fetch=True)
         if not receta_creada:
             raise Exception("No se pudo crear la receta")
         id_receta = receta_creada[0]['idReceta']
@@ -135,13 +130,13 @@ def crear_receta_completa(
             INSERT INTO EstadoReceta (idReceta, estado)
             VALUES (?, ?)
         """
-        ejecutar_consulta(query_estado, (id_receta, 'pendiente'))
+        await ejecutar_consulta_async(query_estado, (id_receta, 'pendiente'))
 
         # 3. Procesar ingredientes
         for ingrediente in ingredientes_data:
             # Verificar si el ingrediente existe
             query_ingrediente = "SELECT idIngrediente FROM Ingrediente WHERE nombre = ?"
-            ingrediente_existente = ejecutar_consulta(
+            ingrediente_existente = await ejecutar_consulta_async(
                 query_ingrediente, 
                 (ingrediente['nombre'],), 
                 fetch=True
@@ -155,8 +150,8 @@ def crear_receta_completa(
                     INSERT INTO Ingrediente (nombre) 
                     VALUES (?)
                 """
-                ejecutar_consulta(query_nuevo_ing, (ingrediente['nombre'],))
-                nuevo_ing = ejecutar_consulta("SELECT TOP 1 idIngrediente FROM Ingrediente ORDER BY idIngrediente DESC", fetch=True)
+                await ejecutar_consulta_async(query_nuevo_ing, (ingrediente['nombre'],))
+                nuevo_ing = await ejecutar_consulta_async("SELECT TOP 1 idIngrediente FROM Ingrediente ORDER BY idIngrediente DESC", fetch=True)
                 id_ingrediente = nuevo_ing[0]['idIngrediente']
 
             # Crear relación Utilizado
@@ -172,7 +167,7 @@ def crear_receta_completa(
                 ingrediente['idUnidad'],
                 ingrediente.get('observaciones')
             )
-            ejecutar_consulta(query_utilizado, params_utilizado)
+            await ejecutar_consulta_async(query_utilizado, params_utilizado)
 
         # 4. Procesar pasos
         for paso in pasos_data:
@@ -180,8 +175,8 @@ def crear_receta_completa(
                 INSERT INTO Paso (idReceta, nroPaso, texto)
                 VALUES (?, ?, ?)
             """
-            ejecutar_consulta(query_paso, (id_receta, paso['nroPaso'], paso['texto']))
-            paso_creado = ejecutar_consulta("SELECT TOP 1 idPaso FROM Paso ORDER BY idPaso DESC", fetch=True)
+            await ejecutar_consulta_async(query_paso, (id_receta, paso['nroPaso'], paso['texto']))
+            paso_creado = await ejecutar_consulta_async("SELECT TOP 1 idPaso FROM Paso ORDER BY idPaso DESC", fetch=True)
             id_paso = paso_creado[0]['idPaso']
 
             # 5. Procesar multimedia asociada a pasos
@@ -192,7 +187,7 @@ def crear_receta_completa(
                             idPaso, tipo_contenido, extension, urlContenido
                         ) VALUES (?, ?, ?, ?)
                     """
-                    ejecutar_consulta(
+                    await ejecutar_consulta_async(
                         query_media,
                         (
                             id_paso,
@@ -203,13 +198,13 @@ def crear_receta_completa(
                     )
 
         # Obtener y retornar la receta completa creada
-        return obtener_receta_completa(id_receta)
+        return await obtener_receta_completa(id_receta)
 
     except Exception as e:
         print(f"Error al crear receta: {str(e)}")
         raise e
 
-def obtener_receta_completa(id_receta: int) -> Optional[Dict]:
+async def obtener_receta_completa(id_receta: int) -> Optional[Dict]:
     """
     Obtiene todos los datos de una receta incluyendo:
     - Datos básicos
@@ -220,8 +215,8 @@ def obtener_receta_completa(id_receta: int) -> Optional[Dict]:
     """
     try:
         # 1. Obtener datos básicos de la receta
-        query_receta = "SELECT * FROM Receta WHERE idReceta = ?"
-        receta = ejecutar_consulta(query_receta, (id_receta,), fetch=True)
+        query_receta = "SELECT * FROM Recetas WHERE idReceta = ?"
+        receta = await ejecutar_consulta_async(query_receta, (id_receta,), fetch=True)
         if not receta:
             return None
         
@@ -233,40 +228,40 @@ def obtener_receta_completa(id_receta: int) -> Optional[Dict]:
             WHERE idReceta = ? 
             ORDER BY idEstado DESC
         """
-        estado = ejecutar_consulta(query_estado, (id_receta,), fetch=True)
+        estado = await ejecutar_consulta_async(query_estado, (id_receta,), fetch=True)
         receta_data['estado'] = estado[0]['estado'] if estado else None
         
         # 3. Obtener ingredientes con unidades
         query_ingredientes = """
             SELECT u.*, i.nombre as nombre_ingrediente, ut.cantidad, ut.observaciones
-            FROM Utilizado ut
-            JOIN Ingrediente i ON ut.idIngrediente = i.idIngrediente
-            JOIN Unidad u ON ut.idUnidad = u.idUnidad
+            FROM Utilizados ut
+            JOIN Ingredientes i ON ut.idIngrediente = i.idIngrediente
+            JOIN Unidades u ON ut.idUnidad = u.idUnidad
             WHERE ut.idReceta = ?
         """
-        ingredientes = ejecutar_consulta(query_ingredientes, (id_receta,), fetch=True)
+        ingredientes = await ejecutar_consulta_async(query_ingredientes, (id_receta,), fetch=True)
         receta_data['ingredientes'] = ingredientes if ingredientes else []
         
         # 4. Obtener pasos con multimedia
         query_pasos = """
-            SELECT p.* FROM Paso p
+            SELECT p.* FROM Pasos p
             WHERE p.idReceta = ?
             ORDER BY p.nroPaso
         """
-        pasos = ejecutar_consulta(query_pasos, (id_receta,), fetch=True)
+        pasos = await ejecutar_consulta_async(query_pasos, (id_receta,), fetch=True)
         for paso in pasos:
             query_multimedia = """
                 SELECT tipo_contenido, urlContenido, extension
                 FROM Multimedia
                 WHERE idPaso = ?
             """
-            multimedia = ejecutar_consulta(query_multimedia, (paso['idPaso'],), fetch=True)
+            multimedia = await ejecutar_consulta_async(query_multimedia, (paso['idPaso'],), fetch=True)
             paso['multimedia'] = multimedia if multimedia else []
         receta_data['pasos'] = pasos if pasos else []
 
         # 5. Obtener fotos adicionales (si existen)
-        query_fotos = "SELECT * FROM Foto WHERE idReceta = ?"
-        fotos = ejecutar_consulta(query_fotos, (id_receta,), fetch=True)
+        query_fotos = "SELECT * FROM Fotos WHERE idReceta = ?"
+        fotos = await ejecutar_consulta_async(query_fotos, (id_receta,), fetch=True)
         receta_data['fotos'] = fotos if fotos else []
 
         return receta_data
@@ -275,40 +270,35 @@ def obtener_receta_completa(id_receta: int) -> Optional[Dict]:
         print(f"Error al obtener receta: {str(e)}")
         raise e
 
-def listar_recetas(
+async def listar_recetas(
     tipo_receta: Optional[int] = None,
+    contiene_ingrediente: Optional[int] = None,
+    excluye_ingrediente: Optional[int] = None,
     id_usuario: Optional[int] = None,
     nombre: Optional[str] = None,
-    tiene_ingrediente: Optional[int] = None,
-    no_tiene_ingrediente: Optional[int] = None,
-    ordenar_por: str = 'fecha_creacion',
-    orden: str = 'DESC',
-    limite: int = 10,
-    offset: int = 0
+    ordenar_por: str = 'fecha',  # 'fecha' o 'nombre'
+    orden: str = 'desc',         # 'asc' o 'desc'
+    limit: Optional[int] = None,
+    estado: Optional[str] = "aprobado"  # nuevo parámetro
 ) -> List[Dict]:
-    """
-    Lista recetas con múltiples filtros posibles:
-    - Por tipo de receta
-    - Por usuario creador
-    - Por nombre (coincidencia parcial)
-    - Que contengan o no ciertos ingredientes
-    - Ordenación por diferentes campos
-    - Paginación
-    """
     try:
         query = """
-            SELECT r.*, 
-                   (SELECT TOP 1 estado FROM EstadoReceta er 
-                    WHERE er.idReceta = r.idReceta 
-                    ORDER BY er.idEstado DESC) as estado,
-                   t.descripcion as tipo_receta_desc
-            FROM Receta r
-            JOIN TipoReceta t ON r.idTipo = t.idTipo
+            SELECT r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, r.idUsuario
+            FROM dbo.recetas r
+            JOIN (
+                SELECT idReceta, MAX(fecha_creacion) AS ultima_fecha
+                FROM dbo.estadoReceta
+                GROUP BY idReceta
+            ) er_max ON r.idReceta = er_max.idReceta
+            JOIN dbo.estadoReceta er ON er.idReceta = er_max.idReceta AND er.fecha_creacion = er_max.ultima_fecha
             WHERE 1=1
         """
         params = []
 
-        # Aplicar filtros
+        if estado and estado.lower() != "todos":
+            query += " AND LOWER(er.estado) = ?"
+            params.append(estado.lower())
+
         if tipo_receta:
             query += " AND r.idTipo = ?"
             params.append(tipo_receta)
@@ -318,66 +308,62 @@ def listar_recetas(
             params.append(id_usuario)
 
         if nombre:
-            query += " AND r.nombreReceta LIKE ?"
-            params.append(f"%{nombre}%")
+            query += " AND LOWER(r.nombreReceta) LIKE ?"
+            params.append(f"%{nombre.lower()}%")
 
-        if tiene_ingrediente:
+        if contiene_ingrediente:
             query += """
                 AND EXISTS (
-                    SELECT 1 FROM Utilizado u 
-                    WHERE u.idReceta = r.idReceta 
-                    AND u.idIngrediente = ?
+                    SELECT 1 FROM dbo.utilizados u 
+                    WHERE u.idReceta = r.idReceta AND u.idIngrediente = ?
                 )
             """
-            params.append(tiene_ingrediente)
+            params.append(contiene_ingrediente)
 
-        if no_tiene_ingrediente:
+        if excluye_ingrediente:
             query += """
                 AND NOT EXISTS (
-                    SELECT 1 FROM Utilizado u 
-                    WHERE u.idReceta = r.idReceta 
-                    AND u.idIngrediente = ?
+                    SELECT 1 FROM dbo.utilizados u 
+                    WHERE u.idReceta = r.idReceta AND u.idIngrediente = ?
                 )
             """
-            params.append(no_tiene_ingrediente)
+            params.append(excluye_ingrediente)
 
-        # Ordenación
-        orden_campos = {
-            'nombre': 'r.nombreReceta',
-            'fecha': 'r.fechaCreacion',
-            'popularidad': '(SELECT COUNT(*) FROM Favoritos WHERE idReceta = r.idReceta)'
-        }
-        campo_orden = orden_campos.get(ordenar_por, 'r.fechaCreacion')
-        query += f" ORDER BY {campo_orden} {orden}"
+        # Ordenamiento
+        if ordenar_por == 'nombre':
+            query += f" ORDER BY r.nombreReceta {orden.upper()}"
+        else:
+            query += f" ORDER BY er.fecha_creacion {orden.upper()}"
 
-        # Paginación (SQL Server: OFFSET ... ROWS FETCH NEXT ... ROWS ONLY)
-        query += " OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
-        params.extend([offset, limite])
+        if limit:
+            query += " OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY"
+            params.append(limit)
 
-        recetas = ejecutar_consulta(query, tuple(params), fetch=True)
-
-        # Para cada receta, agregar información básica de ingredientes
-        for receta in recetas:
-            query_ingredientes = """
-                SELECT TOP 3 i.nombre 
-                FROM Utilizado u
-                JOIN Ingrediente i ON u.idIngrediente = i.idIngrediente
-                WHERE u.idReceta = ?
-            """
-            ingredientes = ejecutar_consulta(
-                query_ingredientes, 
-                (receta['idReceta'],), 
-                fetch=True
-            )
-            receta['ingredientes'] = [ing['nombre'] for ing in ingredientes] if ingredientes else []
-
-        return recetas if recetas else []
+        recetas = await ejecutar_consulta_async(query, tuple(params), fetch=True)
+        return recetas
 
     except Exception as e:
-        print(f"Error al listar recetas: {str(e)}")
+        print(f"Error al listar recetas filtradas: {str(e)}")
         raise e
 
-def buscar_recetas_por_nombre(nombre: str, limite: int = 10) -> List[Dict]:
+async def listar_ingredientes() -> List[Dict]:
+    """
+    Devuelve todos los ingredientes (id y nombre)
+    """
+    query = "SELECT idIngrediente, nombre FROM Ingredientes"
+    ingredientes = await ejecutar_consulta_async(query, fetch=True)
+    return ingredientes if ingredientes else []
+
+async def listar_tipos_receta() -> List[Dict]:
+    """
+    Devuelve todos los tipos de receta (id y descripcion)
+    """
+    query = "SELECT idTipo, descripcion FROM TiposReceta"
+    tipos = await ejecutar_consulta_async(query, fetch=True)
+    return tipos if tipos else []
+
+
+async def buscar_recetas_por_nombre(nombre: str, limite: int = 10) -> List[Dict]:
     """
     Busca recetas por nombre usando LIKE case insensitive
     """
@@ -394,13 +380,13 @@ def buscar_recetas_por_nombre(nombre: str, limite: int = 10) -> List[Dict]:
             ORDER BY r.nombreReceta
             OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
         """
-        recetas = ejecutar_consulta(query, (f"%{nombre}%", limite), fetch=True)
+        recetas = await ejecutar_consulta_async(query, (f"%{nombre}%", limite), fetch=True)
         return recetas if recetas else []
     except Exception as e:
         print(f"Error en búsqueda por nombre: {str(e)}")
         raise e
 
-def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional[Dict]:
+async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional[Dict]:
     """
     Busca una receta exacta por usuario y nombre (exact match)
     """
@@ -413,13 +399,13 @@ def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional
             FROM Receta r
             WHERE r.idUsuario = ? AND r.nombreReceta = ?
         """
-        receta = ejecutar_consulta(query, (id_usuario, nombre), fetch=True)
+        receta = await ejecutar_consulta_async(query, (id_usuario, nombre), fetch=True)
         return receta[0] if receta else None
     except Exception as e:
         print(f"Error en búsqueda exacta: {str(e)}")
         raise e
 
-def actualizar_estado_receta(id_receta: int, estado: EstadoEnum) -> bool:
+async def actualizar_estado_receta(id_receta: int, estado: EstadoEnum) -> bool:
     """
     Actualiza el estado de una receta (aprobado, rechazado, pendiente)
     """
@@ -428,7 +414,7 @@ def actualizar_estado_receta(id_receta: int, estado: EstadoEnum) -> bool:
             INSERT INTO EstadoReceta (idReceta, estado)
             VALUES (?, ?)
         """
-        ejecutar_consulta(query, (id_receta, estado.value))
+        await ejecutar_consulta_async(query, (id_receta, estado.value))
         return True
     except Exception as e:
         print(f"Error al actualizar estado: {str(e)}")

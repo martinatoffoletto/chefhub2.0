@@ -13,7 +13,7 @@ router = APIRouter()
 @router.get("/curso")
 async def get_all_cursos():
     try:
-        return curso_services.obtener_todos_los_cursos()
+        return await curso_services.obtener_todos_los_cursos()
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno")
 
@@ -24,7 +24,7 @@ async def get_curso(id: str, user=Depends(obtener_usuario_actual)):
     if user["tipo_usuario"] != "Alumno":
         raise HTTPException(status_code=403, detail="Acceso permitido solo a alumnos")
     elif user["tipo_usuario"] == "Alumno":
-        curso =  curso_services.obtener_info_curso_por_id(id)
+        curso =  await curso_services.obtener_info_curso_por_id(id)
         if not curso:
             raise HTTPException(status_code=404, detail="Curso no encontrado")
     else: 
@@ -34,7 +34,7 @@ async def get_curso(id: str, user=Depends(obtener_usuario_actual)):
 #Ver  cursos por nombre 
 @router.get("/curso/search/{nombre}")
 async def get_curso_nombre(nombre: str):
-    curso =  curso_services.obtener_info_curso_por_nombre(nombre)
+    curso = await curso_services.obtener_info_curso_por_nombre(nombre)
     if not curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     
@@ -59,24 +59,26 @@ async def get_sedes_por_curso_id(id: str):
     except Exception:
         raise HTTPException(status_code=404, detail="Sedes no encontrada")
 
-
+"""
 #Ver todas las sedes 
 @router.get("/sedes")
 async def get_sedes():
     try:
         return await curso_services.obtener_sedes()
-    except curso_services.SedeNoExiste:
+    except Exception:
         raise HTTPException(status_code=404, detail="Sedes no encontrada")
+
+
 
 #Ver cursos de sede 
 @router.get("/sedes/{id}")
 async def get_cursos_por_sed(id: str):
     try:
         return await curso_services.obtener_cursos_por_sedes(id)
-    except curso_services.SedeNoExiste:
+    except Exception:
         raise HTTPException(status_code=404, detail="Sedes no encontrada")
 
-
+"""
 
 #Inscribirse a un curso
 @router.post("/curso/{oferta_id}/alta")

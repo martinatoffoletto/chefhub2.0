@@ -1,6 +1,6 @@
 from typing import Optional, Union, Dict
 from pydantic import BaseModel
-from app.config.db import ejecutar_consulta
+from app.config.db import ejecutar_consulta_async
 
 
 #acessos a bd agregar actualizar, eliminar, etc
@@ -28,12 +28,12 @@ class Password(BaseModel):
         
 #Consultas a la base de datos
 
-def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
+async def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
     query_user = """
         INSERT INTO usuarios (mail, nickname, habilitado, nombre, direccion, avatar)
         VALUES (?, ?, ?, ?, ?, ?)
     """
-    ejecutar_consulta(query_user, (
+    await ejecutar_consulta_async(query_user, (
         usuario.mail,
         usuario.nickname,
         usuario.habilitado,
@@ -42,18 +42,19 @@ def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
         usuario.avatar
     ))
 
-    id_user = ejecutar_consulta("SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC", fetch=True)[0]['id']
+    id_user_result = await ejecutar_consulta_async("SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC", fetch=True)
+    id_user = id_user_result[0]['id'] if id_user_result else None
 
     query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
-    ejecutar_consulta(query_pass, (id_user, password))
+    await ejecutar_consulta_async(query_pass, (id_user, password))
 
     return id_user
 
 
 # Buscar usuario por ID (con datos de alumno y contraseña)
-def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
+async def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
     query_user = "SELECT * FROM usuarios WHERE idUsuario = ?"
-    usuario = ejecutar_consulta(query_user, (id_usuario,), fetch=True)
+    usuario = await ejecutar_consulta_async(query_user, (id_usuario,), fetch=True)
     
     if not usuario:
         return None
@@ -62,7 +63,7 @@ def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
 
     # Buscar password
     query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
-    pass_result = ejecutar_consulta(query_pass, (id_usuario,), fetch=True)
+    pass_result = await ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True)
     if pass_result:
         user_data['password'] = pass_result[0]['password']
 
@@ -71,7 +72,7 @@ def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
         SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
         FROM alumnos WHERE idAlumno = ?
     """
-    alumno_result = ejecutar_consulta(query_alumno, (id_usuario,), fetch=True)
+    alumno_result = await ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True)
     if alumno_result:
         user_data.update(alumno_result[0]) 
 
@@ -79,9 +80,9 @@ def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
 
 
 # Buscar usuario por mail
-def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
+async def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
     query_user = "SELECT * FROM usuarios WHERE mail = ?"
-    usuario = ejecutar_consulta(query_user, (mail,), fetch=True)
+    usuario = await ejecutar_consulta_async(query_user, (mail,), fetch=True)
     
     if not usuario:
         return None
@@ -91,7 +92,7 @@ def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
 
 
     query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
-    pass_result = ejecutar_consulta(query_pass, (id_usuario,), fetch=True)
+    pass_result = await ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True)
     if pass_result:
         user_data['password'] = pass_result[0]['password']
 
@@ -100,7 +101,7 @@ def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
         SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
         FROM alumnos WHERE idAlumno = ?
     """
-    alumno_result = ejecutar_consulta(query_alumno, (id_usuario,), fetch=True)
+    alumno_result = await ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True)
     if alumno_result:
         user_data.update(alumno_result[0])
 
@@ -109,12 +110,12 @@ def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
 
 
 # Convertir usuario a alumno
-def upgradear_a_alumno(alumno: Alumno) -> bool:
+async def upgradear_a_alumno(alumno: Alumno) -> bool:
     query = """
         INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
         VALUES (?, ?, ?, ?, ?, ?)
     """
-    ejecutar_consulta(query, (
+    await ejecutar_consulta_async(query, (
         alumno.idAlumno,
         alumno.numeroTarjeta,
         alumno.dniFrente,
@@ -126,9 +127,9 @@ def upgradear_a_alumno(alumno: Alumno) -> bool:
 
 
 # Cambiar contraseña
-def cambiar_contrasena(pass_obj: Password) -> bool:
+async def cambiar_contrasena(pass_obj: Password) -> bool:
     query = """
         UPDATE passwords SET password = ? WHERE idpassword = ?
     """
-    ejecutar_consulta(query, (pass_obj.password, pass_obj.idpassword))
+    await ejecutar_consulta_async(query, (pass_obj.password, pass_obj.idpassword))
     return True
