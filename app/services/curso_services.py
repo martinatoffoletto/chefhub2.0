@@ -39,15 +39,21 @@ async def obtener_cursos_por_sedes(id_sede):
             cursos.append(curso)
     return cursos 
 
-# Ver cronogramas de un curso
-async def obtener_cronogramas_por_curso(id_curso):
+#Ver sedes por curso
+async def obtener_sedes_por_curso(id_curso):
+    cronogramas = await obtener_cronogramas_por_curso(id_curso)
+    sedes = []
+    for cronograma in cronogramas:
+        sede = await obtener_sede_por_id(cronograma['idSede'])
+        if sede:
+            sedes.append(sede)
+    return sedes
+
+# Ver cronogramas de un curso (es decir ver las ofertas de un curso, con fechas y sede, vacantes)
+async def obtener_ofertas_por_curso(id_curso):
     cronogramas = await obtener_cronogramas_por_curso(id_curso)
     return cronogramas
 
-# Ver cronogramas de una sede
-async def obtener_cronogramas_por_sede(id_sede):
-    cronogramas = await obtener_cronogramas_por_sede(id_sede)
-    return cronogramas
 
 # Inscribir usuario a un cronograma
 async def inscribir_usuario_a_cronograma(id_alumno, id_cronograma, fecha=None):

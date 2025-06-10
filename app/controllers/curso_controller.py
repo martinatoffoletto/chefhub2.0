@@ -40,16 +40,17 @@ async def get_curso_nombre(nombre: str):
     
     return curso
 
-"""
+
 #Ver todas las ofertas de un curso 
 @router.get("/curso/{id}/ofertas")
 async def get_sedes_por_ofertas_id(id: str):
     try:
-        return await curso_services.obtener_ofertas_por_cursos(id)
+        return await curso_services.obtener_ofertas_por_curso(id)
     except curso_services.OfertasNoExiste:
         raise HTTPException(status_code=404, detail="Oferta no encontradas")
     except curso_services.ParametroInvalido:
         raise HTTPException(status_code=400, detail="Parámetro inválido")
+
 
 #Ver todas las sedes de un curso
 @router.get("/curso/{id}/sedes")
@@ -59,7 +60,7 @@ async def get_sedes_por_curso_id(id: str):
     except Exception:
         raise HTTPException(status_code=404, detail="Sedes no encontrada")
 
-"""
+
 #Ver todas las sedes 
 @router.get("/sedes")
 async def get_sedes():
