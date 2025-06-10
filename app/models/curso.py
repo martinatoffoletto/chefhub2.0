@@ -1,49 +1,36 @@
-from typing import Optional
+from typing import Optional, List, Dict
 from pydantic import BaseModel, constr, condecimal
 from datetime import date, datetime
-
+from app.config.db import ejecutar_consulta
 #clase principal
 
-"""
+
 class Curso(BaseModel):
-    id_curso: Optional[int]
-    descripcion: Optional[constr(max_length=300)]
-    contenidos: Optional[constr(max_length=500)]
-    requerimientos: Optional[constr(max_length=500)]
-    duracion: Optional[int]
-    precio: Optional[condecimal(max_digits=12, decimal_places=2)]
-    modalidad: Optional[constr(max_length=20)]  # presencial, remoto, virtual
+    id_curso: Optional[int] 
+    descripcion: str
+    contenidos: str
+    requerimientos: str
+    duracion: int
+    precio: int
+    modalidad: str  # presencial, remoto, virtual
 
 #CRUD. consultas a la base de datos
+""""""
 
-async def crear_curso(curso: Curso, cursos_collection):
-    curso_dict = curso.model_dump()
-    result = await cursos_collection.insert_one(curso_dict)
-    curso_dict["_id"] = result.inserted_id
-    return curso_dict
+def listar_cursos() -> List[Dict]:
+    query = "SELECT * FROM cursos"
+    result = ejecutar_consulta(query, fetch=True)
+    return result if result else []
 
-async def listar_cursos(cursos_collection):
-    cursos = await cursos_collection.find().to_list(length=None)
-    return cursos
 
-async def obtener_curso_por_id(curso_id: str, cursos_collection):
-    return await cursos_collection.find_one({"_id": ObjectId(curso_id)})
+def obtener_curso_por_id(id_curso: int) -> Optional[Dict]:
+    query = "SELECT * FROM cursos WHERE idCurso = %s"
+    result = ejecutar_consulta(query, (id_curso,), fetch=True)
+    return result[0] if result else None
 
-async def actualizar_curso(curso_id: str, curso: Curso, cursos_collection):
-    curso_dict = curso.model_dump(by_alias=True)
-    result = await cursos_collection.replace_one({"_id": ObjectId(curso_id)}, curso_dict)
-    return result.modified_count > 0
 
-async def eliminar_curso(curso_id: str, cursos_collection):
-    result = await cursos_collection.delete_one({"_id": ObjectId(curso_id)})
-    return result.deleted_count > 0
-
-async def buscar_cursos_por_nombre(nombre: str, cursos_collection):
-    cursos = await cursos_collection.find({
-        "nombre": {
-            "$regex": nombre,
-            "$options": "i"  # i = case-insensitive
-        }
-    }).to_list(length=None)
-    return cursos
-"""
+def buscar_curso_por_nombre(nombre: str) -> List[Dict]:
+    query = "SELECT * FROM cursos WHERE descripcion REGEXP %s"
+    regex = nombre
+    result = ejecutar_consulta(query, (regex,), fetch=True)
+    return result if result else []

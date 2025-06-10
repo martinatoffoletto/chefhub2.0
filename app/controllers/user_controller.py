@@ -13,10 +13,6 @@ async def get_current_user(current_user=Depends(obtener_usuario_actual)):
     return current_user
 
 
-@router.get("/")
-async def get_user():
-   return user_services.obtener_usuario_por_emaill()
-    
 """
 #ver cursos de usuario
 @router.get("/me/cursos")
@@ -50,18 +46,20 @@ async def delete_receta_favorita(receta_id,current_user=Depends(obtener_usuario_
         raise HTTPException(status_code=404, detail="Receta no favorita")
     return {"msg": "Receta eliminada de favoritos"}
 
-
+"""
 #solicitar upgrade a alumno
 @router.post("/me/upgrade_alumno")
-async def upgrade_alumno(datos_alumno: Alumno,current_user=Depends(obtener_usuario_actual)):
+async def upgrade_alumno(datos_alumno,current_user=Depends(obtener_usuario_actual)):
     try:
-        await user_services.solicitar_upgrade_alumno(current_user["_id"], datos_alumno)
+        datos_alumno['idAlumno'] = current_user['idAlumno']
+        user_services.solicitar_upgrade_alumno(datos_alumno)
     except user_services.DatosInvalidosError:
         raise HTTPException(status_code=400, detail="Datos incompletos o inválidos")
     except user_services.YaEsAlumnoError:
         raise HTTPException(status_code=403, detail="Ya es alumno")
     return obtener_usuario_actual()
 
+"""
 #registrar asistencia
 @router.post("/me/asistencia/{inscripcion_Id}")
 async def register_asistence(inscripcion_Id):

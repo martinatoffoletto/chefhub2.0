@@ -30,8 +30,6 @@ async def obtener_cursos_by_user_id(id_user):
 
 """
 
-def obtener_usuario_por_emaill():
-   return buscar_usuario_por_id(1)
 """
 #ver recetas favoritas de usuario
 async def obtener_recetas_favoritas(id_user):
@@ -46,12 +44,13 @@ async def agregar_receta_favorita(id_user, receta_id):
 async def eliminar_receta_favorita(id_user, receta_id):
     usuario= await eliminar_lista(id_user, receta_id,"favoritos", get_usuarios_collection())
 
-
+"""
 #solicitar upgrade a alumno
-async def solicitar_upgrade_alumno(id_user,datos_alumno):
-    usuario= await actualizar_usuario_a_alumno(id_user, datos_alumno, get_usuarios_collection())
+async def solicitar_upgrade_alumno(alumno: Alumno):
+    usuario= await upgradear_a_alumno(alumno)
+    print("Usuario actualizado:", alumno)
     return usuario
-
+"""
 async def regitrar_asistencia(inscripcion_id):
     asistencia=datetime.now().isoformat()
     await agregar_asistencia(inscripcion_id,asistencia, get_inscripciones_collection())
