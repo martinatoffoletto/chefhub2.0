@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Body
 from app.services import auth_service
+from app.services.auth_service import SECRET_KEY, ALGORITHM
 from jose import JWTError, jwt
 from pydantic import BaseModel
 router = APIRouter()
@@ -18,30 +19,26 @@ class RefreshTokenRequest(BaseModel):
 
 
 @router.post("/auth/refresh")
-async def refresh_token(data: RefreshTokenRequest):
+async def refresh_token(body: RefreshTokenRequest):
     try:
-        payload = jwt.decode(data.refresh_token, auth_service.SECRET_KEY, algorithms=[auth_service.ALGORITHM])
-        print(payload)
+        payload = jwt.decode(body.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token inválido")
         
-        usuario = await auth_service.buscar_usuario_por_id(user_id)
-        if not usuario:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+        usuario = await auth_service.buscar_usuario_por_id(int(user_id))
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        tipo_usuario = "Alumno" if usuario.get("numeroTarjeta") else "Usuario"
+        usuario["tipo_usuario"] = tipo_usuario
 
         access_token, new_refresh_token = auth_service.crear_tokens(usuario)
+        return {"access_token": access_token, "refresh_token": new_refresh_token}
 
-        return {
-            "access_token": access_token,
-            "refresh_token": new_refresh_token,
-            "token_type": "bearer"
-        }
-
-    except JWTError as e:
-        print("Error JWT:", e)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado")
-
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    
 @router.post("/register")
 async def register():
     return {"message": "Register endpoint"}

@@ -55,8 +55,10 @@ async def get_recetas(
                 r for r in recetas
                 if r.get("idReceta") not in ids_user and r.get("idUsuario") != user["idUsuario"]
             ]
-
-            return recetas_user + recetas_aprobadas_otras
+            combinacion= recetas_user + recetas_aprobadas_otras
+            if limit is not None:
+                combinacion = combinacion[:limit]
+            return combinacion
 
         return recetas
 

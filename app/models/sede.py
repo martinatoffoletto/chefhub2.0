@@ -17,12 +17,3 @@ class Sedes(BaseModel):
 
 #CRUD
 
-async def listar_sedes() -> List[Dict]:
-    query = "SELECT * FROM sedes"
-    result = await ejecutar_consulta_async(query, fetch=True)
-    return result if result else []
-
-async def obtener_sede_por_id(id_sede: int) -> Optional[Dict]:
-    query = "SELECT * FROM sedes WHERE idSede = ?"
-    result = await ejecutar_consulta_async(query, (id_sede,), fetch=True)
-    return result[0] if result else None
