@@ -3,7 +3,10 @@ from jose import jwt, JWTError
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
-from app.models.usuario import *  
+from app.models.usuario import *
+import smtplib
+import bcrypt
+from email.message import EmailMessage
 
 SECRET_KEY = "secret"
 ALGORITHM = "HS256"
@@ -90,3 +93,58 @@ async def obtener_usuario_actual(token: str = Depends(oauth2_scheme)):
         return usuario
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+
+async def validar_alias(username: str):
+    exists=await buscar_usuario_por_alias(username)
+    return not exists
+
+async def enviar_codigo_mail(email: str, codigo: str):
+    try:
+        sender = "chefhubemail@gmail.com"
+        password = "chefhubapp"
+        subject = "Verificación de Email - ChefHub"
+        body = (
+            f"¡Hola! Ingresa este código en la aplicación. "
+            f"Recuerda: tiene una validez de 24 HORAS.\n\n"
+            f"CODIGO: {codigo}\n\n"
+            f"Si desconoces esta acción, ignora este mensaje."
+        )
+
+        msg = EmailMessage()
+        msg['From'] = sender
+        msg['To'] = email
+        msg['Subject'] = subject
+        msg.set_content(body)
+
+        smtp_server = "smtp.gmail.com"
+        smtp_port = 587
+
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender, password)
+            server.send_message(msg)
+
+        print(f"Código {codigo} enviado a {email}")
+        return True
+
+    except Exception as e:
+        print(f"Error en el envío de mail: {e}")
+        return False
+
+async def create_password(password: str, email:str):
+    try:
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        return hashed.decode('utf-8')
+    except Exception as e:
+        print(f"Error hasheando contraseña: {e}")
+        return False
+    
+async def create_user(usuario:Usuario, password:str):
+    try:
+        id_user = await crear_usuario(usuario, password=password)
+        if id_user is None:
+            raise HTTPException(status_code=500, detail="Error al crear usuario")
+        return {"id_usuario": id_user}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")

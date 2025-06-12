@@ -133,3 +133,12 @@ async def cambiar_contrasena(pass_obj: Password) -> bool:
     """
     await ejecutar_consulta_async(query, (pass_obj.password, pass_obj.idpassword))
     return True
+
+#buscar usuario por alias
+async def buscar_usuario_por_alias(username: str):
+    query_user="SELECT * FROM usuarios WHERE nickname = ?"
+    usuario= await ejecutar_consulta_async(query_user, (username,), fetch=True)
+
+    if usuario:
+        return True
+    return False
