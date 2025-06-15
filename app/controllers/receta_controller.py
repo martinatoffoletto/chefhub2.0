@@ -12,65 +12,33 @@ router = APIRouter(prefix="/recetas", tags=["Recetas"])
 # Ver todas las recetas con filtros, límites y orden
 @router.get("/", status_code=200)
 async def get_recetas(
-    tipo: Optional[int] = None,
-    usuario: Optional[int] = None,
-    nombre: Optional[str] = None,
-    contiene_ingrediente: Optional[int] = None,
-    excluye_ingrediente: Optional[int] = None,
-    sort: Optional[str] = Query("fecha"),  # 'fecha' o 'nombre'
-    order: Optional[str] = Query("DESC"),  # 'ASC' o 'DESC'
-    limit: Optional[int] = Query(None),     # Sin límite si no se pasa
-    estado: Optional[str] = "aprobado",
-    user=Depends(obtener_usuario_actual_opcional)
+    ordenar_por: str = Query("nombre", regex="^(nombre|reciente|usuario)$"),
+    nickname: Optional[str] = Query(None),
+    id_ingrediente_incluye: Optional[int] = Query(None),
+    id_ingrediente_excluye: Optional[int] = Query(None),
+    id_tipo: Optional[int] = Query(None),
+    nombre_receta: Optional[str] = Query(None),
+    limite: Optional[int] = Query(None),
+    user = Depends(obtener_usuario_actual_opcional)
 ):
-    try:
-        recetas = await receta_service.obtener_recetas(
-            tipo_receta=tipo,
-            id_usuario=usuario,
-            nombre=nombre,
-            tiene_ingrediente=contiene_ingrediente,
-            no_tiene_ingrediente=excluye_ingrediente,
-            ordenar_por=sort,
-            orden=order.upper(),
-            limite=limit,
-            state=estado
-        )
-
-        if user is not None:
-            recetas_user = await receta_service.obtener_recetas(
-                tipo_receta=tipo,
-                id_usuario=user["idUsuario"],
-                nombre=nombre,
-                tiene_ingrediente=contiene_ingrediente,
-                no_tiene_ingrediente=excluye_ingrediente,
-                ordenar_por=sort,
-                orden=order.upper(),
-                limite=limit,
-                state="todos"
-            )
-
-            # Filtrar recetas duplicadas (por idReceta) y que no sean del mismo usuario
-            ids_user = {r["idReceta"] for r in recetas_user}
-            recetas_aprobadas_otras = [
-                r for r in recetas
-                if r.get("idReceta") not in ids_user and r.get("idUsuario") != user["idUsuario"]
-            ]
-            combinacion= recetas_user + recetas_aprobadas_otras
-            if limit is not None:
-                combinacion = combinacion[:limit]
-            return combinacion
-
-        return recetas
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
-
+    id_usuario_logueado = user["idUsuario"] if user else None
+    recetas = await receta_service.listar_recetas(
+        ordenar_por=ordenar_por,
+        nickname=nickname,
+        id_ingrediente_incluye=id_ingrediente_incluye,
+        id_ingrediente_excluye=id_ingrediente_excluye,
+        id_tipo=id_tipo,
+        id_usuario_logueado=id_usuario_logueado,
+        nombre_receta=nombre_receta,
+        limite=limite
+    )
+    return recetas
 
 # Obtener todos los ingredientes (id y nombre)
 @router.get("/ingredientes", status_code=200)
 async def get_ingredientes():
     try:
-        ingredientes = await receta_service.obtener_ingredientes()
+        ingredientes = await receta_service.listar_ingredientes()
         return ingredientes
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener ingredientes: {str(e)}")
@@ -79,7 +47,7 @@ async def get_ingredientes():
 @router.get("/tipos", status_code=200)
 async def get_tipos_receta():
     try:
-        tipos = await receta_service.obtener_tipos_receta()
+        tipos = await receta_service.listar_tipos_receta()
         return tipos
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener tipos de receta: {str(e)}")
@@ -89,7 +57,7 @@ async def get_tipos_receta():
 #Ver receta por id
 @router.get("/{id}", status_code=200) 
 async def get_receta_por_id(id: str = Path(...)):
-    receta = await receta_service.obtener_por_id(id)
+    receta = await receta_service.obtener_receta_detallada(id)
     if not receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
     return receta

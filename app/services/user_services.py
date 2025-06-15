@@ -4,6 +4,15 @@ from app.models.cronogramaCurso import *
 from app.models.curso import *
 from datetime import datetime
 
+
+#
+# Obtener el nickname de un usuario por su ID
+async def obtener_nickname_por_id(id_usuario: int) -> Optional[str]:
+    query = "SELECT nickname FROM usuarios WHERE idUsuario = ?"
+    resultado = await ejecutar_consulta_async(query, [id_usuario], fetch=True)
+    return resultado[0]["nickname"] if resultado else None
+
+
 # Ver recetas favoritas de usuario
 async def obtener_recetas_favoritas(id_user):
     usuario = await obtener_usuario_por_id(id_user["_id"])
