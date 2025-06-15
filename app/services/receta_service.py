@@ -63,13 +63,13 @@ async def listar_recetas(
         if nickname and nickname != usuario_logueado_nickname:
             filtros.append("""
                 r.idReceta IN (
-                    SELECT idReceta FROM estadoReceta WHERE estado = 'aprobada'
+                    SELECT idReceta FROM estadoReceta WHERE estado = 'aprobado'
                 )
             """)
         else:
             filtros.append("""
                 (
-                    r.idReceta IN (SELECT idReceta FROM estadoReceta WHERE estado = 'aprobada')
+                    r.idReceta IN (SELECT idReceta FROM estadoReceta WHERE estado = 'aprobado')
                     OR r.idUsuario = ?
                 )
             """)
@@ -77,7 +77,7 @@ async def listar_recetas(
     else:
         filtros.append("""
             r.idReceta IN (
-                SELECT idReceta FROM estadoReceta WHERE estado = 'aprobada'
+                SELECT idReceta FROM estadoReceta WHERE estado = 'aprobado'
             )
         """)
 
