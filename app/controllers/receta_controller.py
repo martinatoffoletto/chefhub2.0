@@ -21,6 +21,15 @@ async def get_recetas(
     limite: Optional[int] = Query(None),
     user = Depends(obtener_usuario_actual_opcional)
 ):
+    print("Obteniendo recetas con filtros:", {
+        "ordenar_por": ordenar_por,
+        "nickname": nickname,
+        "id_ingrediente_incluye": id_ingrediente_incluye,
+        "id_ingrediente_excluye": id_ingrediente_excluye,
+        "id_tipo": id_tipo,
+        "nombre_receta": nombre_receta,
+        "limite": limite,
+        "user": user})
     id_usuario_logueado = user["idUsuario"] if user else None
     recetas = await receta_service.listar_recetas(
         ordenar_por=ordenar_por,
