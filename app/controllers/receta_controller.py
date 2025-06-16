@@ -52,6 +52,7 @@ async def get_ingredientes():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener ingredientes: {str(e)}")
 
+
 # Obtener todos los tipos de receta (id y descripcion)
 @router.get("/tipos", status_code=200)
 async def get_tipos_receta():
@@ -60,8 +61,15 @@ async def get_tipos_receta():
         return tipos
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener tipos de receta: {str(e)}")
-    
 
+#obtener todas las unidades (id y descripcion)
+@router.get("/unidades", status_code=200)   
+async def get_unidades():
+    try:
+        unidades = await receta_service.listar_unidades()
+        return unidades
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener unidades: {str(e)}")
 
 #Ver receta por id
 @router.get("/{id}", status_code=200) 
@@ -71,19 +79,31 @@ async def get_receta_por_id(id: str = Path(...)):
         raise HTTPException(status_code=404, detail="Receta no encontrada")
     return receta
 
-"""
+
 #Verificar receta 
 @router.post("/verificar/{nombre}")
 async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
     try:
-        return await receta_service.verificar_receta(nombre, user)
+        return await receta_service.verificar_receta(user["idUsuario"], nombre)
     except AppError as e:
         raise HTTPException(status_code=e.code, detail=e.message)
 
+
+
 #crear receta
-@router.post("/") ##FALTA QUE PASE LOS ARCHVIOS MULTIMEDIA QUE RECIBE. LOS BAJE A STATIC Y PONGA LA REFERENCIA EN LA RECETA
-async def post_receta(receta: Receta, user=Depends(obtener_usuario_actual)):
-    return await receta_service.crear_recetas(receta, user)
+@router.post("/")
+async def post_receta(
+    receta: CrearRecetaRequest,
+    user=Depends(obtener_usuario_actual)
+):
+    try:
+        id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
+        return {"mensaje": "Receta creada correctamente", "idReceta": id_receta}
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail="Ocurrió un error al crear la receta")
+
+"""
 #reemplazar receta
 @router.post("/reemplazar")
 async def reemplazar_receta(receta: Receta, user=Depends(obtener_usuario_actual)):

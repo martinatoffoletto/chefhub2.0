@@ -37,19 +37,19 @@ async def listar_sedes() -> List[Dict]:
     return result if result else []
 
 
-#Ver cursos de sede 
+# Ver cursos de sede 
 async def obtener_cursos_por_sede(id_sede: int) -> List[Dict]:
     query = """
         SELECT c.idCurso, c.descripcion, c.duracion, c.precio
         FROM cronogramaCursos cc
         JOIN cursos c ON cc.idCurso = c.idCurso
-        WHERE cc.idSede = :id_sede
+        WHERE cc.idSede = ?
     """
-    params = {"id_sede": id_sede}
+    params = (id_sede,)
     result = await ejecutar_consulta_async(query, params=params, fetch=True)
     return result if result else []
 
-#Ver sedes por curso
+# Ver sedes por curso
 async def obtener_sedes_por_curso(id_curso: int) -> List[Dict]:
     query = """
         SELECT s.idSede, s.nombreSede AS nombre, s.direccionSede AS direccion
@@ -61,8 +61,7 @@ async def obtener_sedes_por_curso(id_curso: int) -> List[Dict]:
     result = await ejecutar_consulta_async(query, params=params, fetch=True)
     return result if result else []
 
-
-#ver si alumno está inscrito a un curso
+# Ver si alumno está inscrito a un curso
 async def verificar_inscripcion_alumno(id_alumno: int, id_curso: int) -> bool:
     query = """
         SELECT 1 FROM asistenciaCursos 

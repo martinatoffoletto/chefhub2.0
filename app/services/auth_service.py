@@ -3,7 +3,7 @@ from jose import jwt, JWTError
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
-from app.models.usuario import *
+from app.services.user_services import *
 import smtplib
 import bcrypt
 from email.message import EmailMessage

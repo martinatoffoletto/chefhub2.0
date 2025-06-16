@@ -4,8 +4,105 @@ from app.models.cronogramaCurso import *
 from app.models.curso import *
 from datetime import datetime
 
+############ SE USA EN AUTH SERVICE Y CONTROLLER ############
 
-#
+#registro de usuario
+async def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
+    query_user = """
+        INSERT INTO usuarios (mail, nickname, habilitado, nombre, direccion, avatar)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """
+    await ejecutar_consulta_async(query_user, (
+        usuario.mail,
+        usuario.nickname,
+        usuario.habilitado,
+        usuario.nombre,
+        usuario.direccion,
+        usuario.avatar
+    ))
+
+    id_user_result = await ejecutar_consulta_async("SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC", fetch=True)
+    id_user = id_user_result[0]['id'] if id_user_result else None
+
+    query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
+    await ejecutar_consulta_async(query_pass, (id_user, password))
+
+    return id_user
+
+
+# Buscar usuario por ID (con datos de alumno y contraseña)
+async def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
+    query_user = "SELECT * FROM usuarios WHERE idUsuario = ?"
+    usuario = await ejecutar_consulta_async(query_user, (id_usuario,), fetch=True)
+    
+    if not usuario:
+        return None
+
+    user_data = dict(usuario[0]) 
+
+    # Buscar password
+    query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
+    pass_result = await ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True)
+    if pass_result:
+        user_data['password'] = pass_result[0]['password']
+
+    # Buscar si es alumno
+    query_alumno = """
+        SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
+        FROM alumnos WHERE idAlumno = ?
+    """
+    alumno_result = await ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True)
+    if alumno_result:
+        user_data.update(alumno_result[0]) 
+
+    return user_data
+
+# Buscar usuario por mail
+async def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
+    query_user = "SELECT * FROM usuarios WHERE mail = ?"
+    usuario = await ejecutar_consulta_async(query_user, (mail,), fetch=True)
+    
+    if not usuario:
+        return None
+
+    user_data = dict(usuario[0])
+    id_usuario = user_data['idUsuario']
+
+
+    query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
+    pass_result = await ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True)
+    if pass_result:
+        user_data['password'] = pass_result[0]['password']
+
+
+    query_alumno = """
+        SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
+        FROM alumnos WHERE idAlumno = ?
+    """
+    alumno_result = await ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True)
+    if alumno_result:
+        user_data.update(alumno_result[0])
+
+    return user_data
+
+# Cambiar contraseña
+async def cambiar_contrasena(pass_obj: Password) -> bool:
+    query = """
+        UPDATE passwords SET password = ? WHERE idpassword = ?
+    """
+    await ejecutar_consulta_async(query, (pass_obj.password, pass_obj.idpassword))
+    return True
+
+#buscar usuario por alias
+async def buscar_usuario_por_alias(username: str):
+    query_user="SELECT * FROM usuarios WHERE nickname = ?"
+    usuario= await ejecutar_consulta_async(query_user, (username,), fetch=True)
+
+    if usuario:
+        return True
+    return False
+
+
 # Obtener el nickname de un usuario por su ID
 async def obtener_nickname_por_id(id_usuario: int) -> Optional[str]:
     query = "SELECT nickname FROM usuarios WHERE idUsuario = ?"
@@ -13,42 +110,90 @@ async def obtener_nickname_por_id(id_usuario: int) -> Optional[str]:
     return resultado[0]["nickname"] if resultado else None
 
 
+
+############ ENDPOINTS USUARIOS ############
 # Ver recetas favoritas de usuario
-async def obtener_recetas_favoritas(id_user):
-    usuario = await obtener_usuario_por_id(id_user["_id"])
-    return usuario["favoritos"] if usuario and "favoritos" in usuario else []
+async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
+    query = """
+        SELECT r.idReceta FROM recetasFavoritas rf 
+        WHERE rf.idCreador = ?
+    """
+    try:
+        recetas = await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
+        return recetas
+    except Exception as e:
+        print(f"Error al obtener favoritas: {e}")
+        return []
+
 
 # Agregar receta favorita
-async def agregar_receta_favorita(id_user, receta_id):
-    usuario = await agregar_lista(id_user, receta_id, "favoritos")
-    return usuario
+async def agregar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
+    query = """
+        INSERT INTO recetasFavoritas (idCreador, idReceta)
+        VALUES (?, ?)
+    """
+    try:
+        await ejecutar_consulta_async(query, (id_usuario, id_receta))
+        return True
+    except Exception as e:
+        print(f"Error al agregar favorita: {e}")
+        return False
+
 
 # Eliminar receta favorita
-async def eliminar_receta_favorita(id_user, receta_id):
-    usuario = await eliminar_lista(id_user, receta_id, "favoritos")
-    return usuario
+async def eliminar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
+    query = """
+        DELETE FROM recetasFavoritas
+        WHERE idCreador = ? AND idReceta = ?
+    """
+    try:
+        await ejecutar_consulta_async(query, (id_usuario, id_receta))
+        return True
+    except Exception as e:
+        print(f"Error al eliminar favorita: {e}")
+        return False
 
-# Solicitar upgrade a alumno
-async def solicitar_upgrade_alumno(alumno: Alumno):
-    usuario = await upgradear_a_alumno(alumno)
-    print("Usuario actualizado:", alumno)
-    return usuario
+# Convertir usuario a alumno
+async def upgradear_a_alumno(alumno: Alumno) -> bool:
+    query = """
+        INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """
+    await ejecutar_consulta_async(query, (
+        alumno.idAlumno,
+        alumno.numeroTarjeta,
+        alumno.dniFrente,
+        alumno.dniFondo,
+        alumno.tramite,
+        alumno.cuentaCorriente
+    ))
+    return True
 
-# Registrar asistencia
-async def regitrar_asistencia(inscripcion_id):
-    asistencia = datetime.now().isoformat()
-    await agregar_asistencia(inscripcion_id, asistencia)
+# Obtener cursos por ID de usuario
+async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
+    query = """
+        SELECT 
+            c.idCurso,
+            c.descripcion AS nombreCurso,
+            c.contenidos,
+            c.requerimientos,
+            c.duracion,
+            c.precio,
+            c.modalidad,
+            cr.idCronograma,
+            cr.fechaInicio,
+            cr.fechaFin,
+            cr.vacantesDisponibles,
+            s.nombreSede,
+            s.direccionSede,
+            s.telefonoSede,
+            s.mailSede,
+            s.whatsApp
+        FROM asistenciaCursos a
+        JOIN cronogramaCursos cr ON a.idCronograma = cr.idCronograma
+        JOIN cursos c ON cr.idCurso = c.idCurso
+        JOIN sedes s ON cr.idSede = s.idSede
+        WHERE a.idAlumno = ?
+    """
+    return await ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
 
-# Ver usuario por id
-async def obtene_usuario_por_id(id_user):
-    usuario = await obtener_usuario_por_id(id_user)
-    if not usuario:
-        return None
-    return {
-        "id": str(usuario["idUsuario"]),
-        "alias": usuario.get("nickname") or usuario.get("alias"),
-        "email": usuario.get("mail") or usuario.get("email"),
-        "tipo_usuario": usuario.get("tipo_usuario"),
-        "avatar": usuario.get("avatar"),
-        "favoritos": usuario.get("favoritos", [])
-    }

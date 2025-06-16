@@ -119,25 +119,16 @@ async def listar_tipos_receta() -> List[Dict]:
     tipos = await ejecutar_consulta_async(query, fetch=True)
     return tipos if tipos else []
 
-# Buscar recetas por usuario y nombre 
-async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional[Dict]:
+
+#listar todas las unidades
+async def listar_unidades() -> List[Dict]:
     """
-    Busca una receta exacta por usuario y nombre (exact match)
+    Devuelve todas las unidades (id y descripcion)
     """
-    try:
-        query = """
-            SELECT r.*, 
-                   (SELECT TOP 1 estado FROM EstadoReceta er 
-                    WHERE er.idReceta = r.idReceta 
-                    ORDER BY er.idEstado DESC) as estado
-            FROM Receta r
-            WHERE r.idUsuario = ? AND r.nombreReceta = ?
-        """
-        receta = await ejecutar_consulta_async(query, (id_usuario, nombre), fetch=True)
-        return receta[0] if receta else None
-    except Exception as e:
-        print(f"Error en búsqueda exacta: {str(e)}")
-        raise e
+    query = "SELECT idUnidad, descripcion FROM unidades"
+    unidades = await ejecutar_consulta_async(query, fetch=True)
+    return unidades if unidades else []
+
 
 #obtener receta por id 
 async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
@@ -166,7 +157,7 @@ async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
     ingredientes_query = """
         SELECT 
             i.nombre AS ingrediente,
-            un.nombre AS unidad,
+            un.descripcion AS unidad,
             u.cantidad,
             u.observaciones
         FROM utilizados u
@@ -176,27 +167,33 @@ async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
     """
     ingredientes = await ejecutar_consulta_async(ingredientes_query, [id_receta], fetch=True)
 
-    # Pasos de la receta (si existe tabla pasosReceta)
+    # Pasos de la receta
     pasos_query = """
         SELECT 
+            idPaso,
             nroPaso,
-            descripcionPaso,
-            mediaPaso
-        FROM pasosReceta
+            texto AS descripcionPaso
+        FROM pasos
         WHERE idReceta = ?
         ORDER BY nroPaso ASC
     """
     pasos = await ejecutar_consulta_async(pasos_query, [id_receta], fetch=True)
 
-    # Multimedia adicional
+    # Multimedia adicional por paso
     media_query = """
         SELECT 
-            url,
-            tipo
-        FROM multimediaReceta
-        WHERE idReceta = ?
+            m.idPaso,
+            m.urlContenido AS url,
+            m.tipo_contenido AS tipo
+        FROM multimedia m
+        JOIN pasos p ON m.idPaso = p.idPaso
+        WHERE p.idReceta = ?
     """
-    multimedia = await ejecutar_consulta_async(media_query, [id_receta], fetch=True)
+    media_por_paso = await ejecutar_consulta_async(media_query, [id_receta], fetch=True)
+
+    # Asociar multimedia a cada paso
+    for paso in pasos:
+        paso["multimedia"] = [m for m in media_por_paso if m["idPaso"] == paso["idPaso"]]
 
     # Calificaciones
     calificacion_query = """
@@ -214,35 +211,125 @@ async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
         **receta,
         "ingredientes": ingredientes,
         "pasos": pasos,
-        "multimedia": multimedia,
         "calificaciones": calificaciones
     }
 
     return receta_detallada
 
+# Buscar idReceta por usuario y nombre 
+async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional[int]:
+    """
+    Busca el idReceta de una receta exacta por usuario y nombre (case insensitive).
+    Retorna el idReceta o None si no existe.
+    """
+    try:
+        query = """
+            SELECT idReceta
+            FROM recetas
+            WHERE idUsuario = ?
+              AND LOWER(nombreReceta) = LOWER(?)
+        """
+        resultados = await ejecutar_consulta_async(query, (id_usuario, nombre), fetch=True)
+        if resultados:
+            return resultados[0]['idReceta']  
+        return None
+    except Exception as e:
+        print(f"Error en buscar_receta_por_usuario_y_nombre: {e}")
+        return None
 
+
+
+async def verificar_receta(id_usuario: int, nombre: str):
+    receta_id = await buscar_receta_por_usuario_y_nombre(id_usuario, nombre)
+    if receta_id:
+        raise AppError(
+            409,
+            {
+                "existe": True,
+                "mensaje": "Receta ya existe",
+                "receta_id": str(receta_id),
+            },
+        )
+    return {
+        "existe": False,
+        "mensaje": "Receta nueva. Podés comenzar a cargarla.",
+        "nombre": nombre,
+    }
+
+
+
+
+
+# Crear receta
+async def crear_receta_completa(data: CrearRecetaRequest, id_usuario: int) -> int:
+    # Devuelve el id de la receta creada, o lanza un error si algo falla
+    query_receta = """
+        INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo)
+        OUTPUT INSERTED.idReceta
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+    receta_params = (
+        id_usuario,
+        data.nombreReceta,
+        data.descripcionReceta,
+        data.fotoPrincipal,
+        data.porciones,
+        data.cantidadPersonas,
+        data.idTipo
+    )
+    resultado = await ejecutar_consulta_async(query_receta, receta_params)
+    id_receta = resultado[0]["idReceta"]
+
+    for ing in data.ingredientes:
+        await ejecutar_consulta_async(
+            """
+            INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (id_receta, ing.idIngrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
+        )
+
+    for paso in data.pasos:
+        res_paso = await ejecutar_consulta_async(
+            """
+            INSERT INTO pasos (idReceta, nroPaso, texto)
+            OUTPUT INSERTED.idPaso
+            VALUES (%s, %s, %s)
+            """,
+            (id_receta, paso.nroPaso, paso.texto)
+        )
+        id_paso = res_paso[0]["idPaso"]
+
+        for media in paso.multimedia:
+            await ejecutar_consulta_async(
+                """
+                INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (id_paso, media.tipo_contenido, media.extension, media.urlContenido)
+            )
+
+    for foto in data.fotosAdicionales:
+        await ejecutar_consulta_async(
+            """
+            INSERT INTO fotos (idReceta, urlFoto, extension)
+            VALUES (%s, %s, %s)
+            """,
+            (id_receta, foto.urlFoto, foto.extension)
+        )
+
+    await ejecutar_consulta_async(
+        """
+        INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
+        VALUES (%s, GETDATE(), 'pendiente')
+        """,
+        (id_receta,)
+    )
+
+    return id_receta
 
 
 """
-# Verificar receta
-async def verificar_receta(nombre: str, user: Usuario):
-    recetas = await buscar_recetas_por_campo_exacto("nombre", nombre, get_recetas_collection())
-    for receta in recetas:
-        if receta.get("usuarioCreador") == user["alias"]:
-            raise AppError(409, {
-                "existe": True,
-                "mensaje": "Receta ya existe",
-                "receta_id": str(receta["_id"]),
-            })
-    return {"existe": False, "mensaje": "Receta nueva. Podés comenzar a cargarla.", "nombre": nombre}
-
-# Crear receta
-async def crear_recetas(receta: Receta, user: Usuario): 
-    print("user en receta", user)
-    receta.usuarioCreador = user["alias"]
-    receta.fecha_publicacion = datetime.now().isoformat()
-    return await crear_receta(receta, get_recetas_collection())
-
 # Reemplazar receta
 async def reemplazar_receta(receta: Receta, user: Usuario):
     await eliminar_receta_por_nombre_y_usuario(receta.nombre, user)

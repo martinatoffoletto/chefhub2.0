@@ -84,3 +84,25 @@ class Receta(BaseModel):
     idTipo: int
 
 
+#EXTRAS PARA CREAR RECETA
+class PasoConMultimedia(BaseModel):
+    nroPaso: int
+    texto: str
+    multimedia: Optional[List[Multimedia]] = []
+
+class IngredienteUtilizado(BaseModel):
+    idIngrediente: int
+    cantidad: int
+    idUnidad: int
+    observaciones: Optional[str] = None
+
+class CrearRecetaRequest(BaseModel):
+    nombreReceta: str
+    descripcionReceta: Optional[str] = None
+    fotoPrincipal: Optional[str] = None
+    porciones: Optional[int] = None
+    cantidadPersonas: Optional[int] = None
+    idTipo: int
+    pasos: List[PasoConMultimedia]
+    ingredientes: List[IngredienteUtilizado]
+    fotosAdicionales: Optional[List[Foto]] = []

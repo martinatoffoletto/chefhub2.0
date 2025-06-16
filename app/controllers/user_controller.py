@@ -12,15 +12,14 @@ router = APIRouter(prefix="/user", tags=["User"])
 async def get_current_user(current_user=Depends(obtener_usuario_actual)):
     return await current_user
 
-
-"""
 #ver cursos de usuario
 @router.get("/me/cursos")
-async def get_user_cursos( current_user=Depends(obtener_usuario_actual)):
+async def get_user_cursos(current_user=Depends(obtener_usuario_actual)):
     if current_user["tipo_usuario"] != "Alumno":
         raise HTTPException(status_code=401, detail="No autorizado")
     cursos = await user_services.obtener_cursos_by_user_id(current_user)
     return cursos
+
 
 ##ver recetas favoritas de usuario
 @router.get("/me/recetas_favoritas")
@@ -59,7 +58,7 @@ async def upgrade_alumno(datos_alumno,current_user=Depends(obtener_usuario_actua
         raise HTTPException(status_code=403, detail="Ya es alumno")
     return await obtener_usuario_actual()
 
-"""
+
 #registrar asistencia
 @router.post("/me/asistencia/{inscripcion_Id}")
 async def register_asistence(inscripcion_Id):
