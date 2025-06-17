@@ -156,6 +156,20 @@ INSERT INTO calificaciones (idusuario, idReceta, calificacion, comentarios) VALU
 (14, 14, 5, 'La pizza salió espectacular.'),
 (15, 15, 4, 'Sandwich rápido y rico.');
 
+INSERT INTO estadoComentario (idCalificacion, estado, fechaEstado, observaciones) VALUES
+(1,  'aprobado',  GETDATE(), ''),
+(2,  'aprobado',  GETDATE(), ''),
+(3,  'aprobado',  GETDATE(), ''),
+(4,  'pendiente',  GETDATE(), ''),
+(5,  'aprobado',  GETDATE(), ''),
+(6,  'aprobado',  GETDATE(), ''),
+(7,  'aprobado',  GETDATE(), ''),
+(8,  'aprobado',  GETDATE(), ''),
+(9,  'aprobado',  GETDATE(), ''),
+(10, 'aprobado',  GETDATE(), ''),
+(11, 'aprobado',  GETDATE(), ''),
+(12, 'aprobado',  GETDATE(), ''),
+(13, 'aprobado',  GETDATE(), '');
 INSERT INTO conversiones (idUnidadOrigen, idUnidadDestino, factorConversiones)
 VALUES 
 (2, 1, 1000),   -- kg → g

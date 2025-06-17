@@ -374,9 +374,7 @@ async def actualizar_receta_completa(id_receta: int, data: CrearRecetaRequest, i
         id_receta,
         id_usuario
     )
-    resultado = await ejecutar_consulta_async(query_update, params_update)
-    if resultado is None:
-        raise Exception("No se pudo actualizar la receta o la receta no existe para este usuario")
+    await ejecutar_consulta_async(query_update, params_update)
 
     # 2. Borrar ingredientes relacionados
     await ejecutar_consulta_async(
@@ -395,6 +393,7 @@ async def actualizar_receta_completa(id_receta: int, data: CrearRecetaRequest, i
         """,
         (id_receta,)
     )
+
     # Luego borrar pasos:
     await ejecutar_consulta_async(
         "DELETE FROM pasos WHERE idReceta = ?",
@@ -451,7 +450,7 @@ async def actualizar_receta_completa(id_receta: int, data: CrearRecetaRequest, i
             (id_receta, foto.urlFoto, foto.extension)
         )
 
-    # 8. Actualizar estado a pendiente (o la que uses)
+    # 8. Actualizar estado a pendiente (o el estado que uses)
     await ejecutar_consulta_async(
         """
         UPDATE estadoReceta SET estado = 'pendiente', fecha_creacion = GETDATE()
@@ -461,19 +460,43 @@ async def actualizar_receta_completa(id_receta: int, data: CrearRecetaRequest, i
     )
 
 # Obtener calificaciones de una receta
-async def obtener_calificaciones_receta(id_receta: str) -> List[Dict]:
-    query = """
-        SELECT 
-            c.idCalificacion,
-            c.calificacion,
-            c.comentarios,
-            u.nickname
-        FROM calificaciones c
-        JOIN usuarios u ON c.idUsuario = u.idUsuario
-        WHERE c.idReceta = ?
-    """
-    calificaciones = await ejecutar_consulta_async(query, [id_receta], fetch=True)
+async def obtener_calificaciones_receta(id_receta: str, id_user: Optional[str] = None) -> List[Dict]:
+    if id_user:
+        query = """
+            SELECT 
+                c.idCalificacion,
+                c.calificacion,
+                c.comentarios,
+                u.nickname,
+                ec.estado,
+                ec.fechaEstado
+            FROM calificaciones c
+            JOIN usuarios u ON c.idUsuario = u.idUsuario
+            LEFT JOIN estadoComentario ec ON c.idCalificacion = ec.idCalificacion
+            WHERE c.idReceta = ?
+            AND (
+                ec.estado = 'aprobado' OR c.idUsuario = ?
+            )
+        """
+        calificaciones = await ejecutar_consulta_async(query, [id_receta, id_user], fetch=True)
+    else:
+        query = """
+            SELECT 
+                c.idCalificacion,
+                c.calificacion,
+                c.comentarios,
+                u.nickname,
+                ec.estado
+            FROM calificaciones c
+            JOIN usuarios u ON c.idUsuario = u.idUsuario
+            LEFT JOIN estadoComentario ec ON c.idCalificacion = ec.idCalificacion
+            WHERE c.idReceta = ?
+            AND ec.estado = 'aprobado'
+        """
+        calificaciones = await ejecutar_consulta_async(query, [id_receta], fetch=True)
+    print(f"Calificaciones encontradas: {calificaciones}")
     return calificaciones if calificaciones else []
+
 
 #crear calificación de receta
 async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Calificacion):
@@ -481,13 +504,30 @@ async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Califi
     existente = await ejecutar_consulta_async(query_existente, (id_receta, id_usuario), fetch=True)
 
     if existente:
-        # Devuelve un error que la ruta interpretará
         return {"error": "Ya has calificado esta receta.", "code": 409}
 
     query_insert = """
         INSERT INTO calificaciones (idReceta, idUsuario, calificacion, comentarios)
+        OUTPUT INSERTED.idCalificacion
         VALUES (?, ?, ?, ?)
     """
-    await ejecutar_consulta_async(query_insert, (id_receta, id_usuario, calificacion.calificacion, calificacion.comentarios))
+    resultado = await ejecutar_consulta_async(
+        query_insert,
+        (id_receta, id_usuario, calificacion.calificacion, calificacion.comentarios),
+        fetch=True
+    )
 
-    return {"success": True}
+    if not resultado:
+        return {"error": "No se pudo insertar la calificación.", "code": 500}
+
+    id_calificacion = resultado[0]["idCalificacion"]
+
+    # Insertar el estado inicial como 'pendiente'
+    query_estado = """
+        INSERT INTO estadoComentario (idCalificacion, estado, fechaEstado)
+        VALUES (?, 'pendiente', GETDATE())
+    """
+    await ejecutar_consulta_async(query_estado, (id_calificacion,))
+
+    return {"success": True, "idCalificacion": id_calificacion}
+

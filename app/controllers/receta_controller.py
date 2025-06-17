@@ -118,12 +118,13 @@ async def reemplazar_receta(id_receta_antigua: int, data: CrearRecetaRequest, us
         raise HTTPException(status_code=400, detail=str(e))
 
 #actualizar receta
-@router.put("/recetas/{id_receta}")
+@router.put("/{id_receta}")
 async def actualizar_receta(
     id_receta: int,
     data: CrearRecetaRequest,
     user=Depends(obtener_usuario_actual)
 ):
+    print("payload", data)
     try:
         await receta_service.actualizar_receta_completa(id_receta, data, user["idUsuario"])
         return {"mensaje": "Receta actualizada correctamente", "idReceta": id_receta}
@@ -156,9 +157,9 @@ async def upload_media(file: UploadFile = File(...)):
 
 #obtener calificaciones de una receta
 @router.get("/{id}/calificaciones", status_code=200)
-async def get_calificaciones_receta(id: str = Path(...)):
+async def get_calificaciones_receta(id: str = Path(...), user=Depends(obtener_usuario_actual_opcional)):
     try:
-        calificaciones = await receta_service.obtener_calificaciones_receta(id)
+        calificaciones = await receta_service.obtener_calificaciones_receta(id,user["idUsuario"] if user else None)
         return calificaciones
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener calificaciones: {str(e)}")
