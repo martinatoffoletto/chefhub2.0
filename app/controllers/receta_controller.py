@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Body, Path, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Body, Path, Query, UploadFile, File
 from typing import List, Optional
 from app.services import receta_service  
 from app.models.receta import *
 from app.services.auth_service import obtener_usuario_actual, obtener_usuario_actual_opcional
 from app.models.appError import AppError
+import shutil
+import uuid
 
 router = APIRouter(prefix="/recetas", tags=["Recetas"])
 
@@ -102,6 +104,26 @@ async def post_receta(
     except Exception as e:
         print("Error:", e)
         raise HTTPException(status_code=500, detail="Ocurrió un error al crear la receta")
+
+
+# Configuración
+STATIC_DIR = "static/img"
+
+@router.post("/upload/")
+async def upload_media(file: UploadFile = File(...)):
+    filename = f"{uuid.uuid4()}.{file.filename.split('.')[-1]}"
+    file_location = f"static/img/{filename}"
+
+    try:
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error guardando archivo")
+
+    # Retornar la URL pública para el archivo subido
+    url = f"/static/img/{filename}"
+    return {"url": url}
+
 
 """
 #reemplazar receta

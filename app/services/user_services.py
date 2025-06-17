@@ -185,10 +185,13 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
             cr.fechaFin,
             cr.vacantesDisponibles,
             s.nombreSede,
-            s.direccionSede,
-            s.telefonoSede,
-            s.mailSede,
-            s.whatsApp
+            (
+                SELECT COUNT(*) 
+                FROM asistenciaCursos a2 
+                WHERE a2.idCronograma = cr.idCronograma 
+                AND a2.idAlumno = a.idAlumno
+            ) AS totalAsistencias
+
         FROM asistenciaCursos a
         JOIN cronogramaCursos cr ON a.idCronograma = cr.idCronograma
         JOIN cursos c ON cr.idCurso = c.idCurso
@@ -196,4 +199,3 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
         WHERE a.idAlumno = ?
     """
     return await ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
-

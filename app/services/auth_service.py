@@ -71,7 +71,8 @@ async def autenticar_usuario(email: str, password: str) -> dict | None:
         "user": {
             "id": str(usuario["idUsuario"]),
             "email": usuario["mail"],
-            "tipo_usuario": tipo_usuario
+            "tipo_usuario": tipo_usuario,
+            "nickname": usuario["nickname"],
         }
     }
 
