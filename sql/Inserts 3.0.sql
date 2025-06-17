@@ -380,10 +380,7 @@ VALUES
 (9, 'aprobado', '2025-06-15 10:00:00'),
 (10, 'aprobado', '2025-06-16 11:00:00'),
 (11, 'pendiente', '2025-06-17 12:00:00'),
-(12, 'pendiente', '2025-06-18 13:00:00'),
-(13, 'aprobado', '2025-06-19 14:00:00'),
-(14, 'aprobado', '2025-06-20 10:00:00'),
-(15, 'pendiente', '2025-06-21 11:00:00');
+(12, 'pendiente', '2025-06-18 13:00:00');
 
 INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
 VALUES 
@@ -406,4 +403,3 @@ INSERT INTO recetasFavoritas (idCreador, idReceta) VALUES
 (14, 1),  -- Jorge Méndez favorita Lasaña vegetariana de berenjenas
 (15, 2);  -- Valeria Suárez favorita Cous cous con vegetales
 
--- Puedes agregar más relaciones según tus usuarios y recetas existentes.
