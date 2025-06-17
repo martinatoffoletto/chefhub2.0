@@ -3,6 +3,7 @@ from app.models.receta import *
 from app.models.usuario import *
 from app.models.appError import AppError
 from datetime import datetime
+from app.models.calificacion import *
 
 ############ LOGICA DE NEGOCIO RECETAS ############
 
@@ -237,8 +238,7 @@ async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Op
         print(f"Error en buscar_receta_por_usuario_y_nombre: {e}")
         return None
 
-
-
+# Verificar si la receta ya existe para el usuario
 async def verificar_receta(id_usuario: int, nombre: str):
     receta_id = await buscar_receta_por_usuario_y_nombre(id_usuario, nombre)
     if receta_id:
@@ -256,17 +256,13 @@ async def verificar_receta(id_usuario: int, nombre: str):
         "nombre": nombre,
     }
 
-
-
-
-
 # Crear receta
 async def crear_receta_completa(data: CrearRecetaRequest, id_usuario: int) -> int:
     # Devuelve el id de la receta creada, o lanza un error si algo falla
     query_receta = """
         INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo)
         OUTPUT INSERTED.idReceta
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """
     receta_params = (
         id_usuario,
@@ -277,14 +273,16 @@ async def crear_receta_completa(data: CrearRecetaRequest, id_usuario: int) -> in
         data.cantidadPersonas,
         data.idTipo
     )
-    resultado = await ejecutar_consulta_async(query_receta, receta_params)
+    resultado = await ejecutar_consulta_async(query_receta, receta_params, fetch=True)
+    if not resultado:
+        raise Exception("No se pudo insertar la receta")
     id_receta = resultado[0]["idReceta"]
 
     for ing in data.ingredientes:
         await ejecutar_consulta_async(
             """
             INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
-            VALUES (%s, %s, %s, %s, %s)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (id_receta, ing.idIngrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
         )
@@ -294,26 +292,29 @@ async def crear_receta_completa(data: CrearRecetaRequest, id_usuario: int) -> in
             """
             INSERT INTO pasos (idReceta, nroPaso, texto)
             OUTPUT INSERTED.idPaso
-            VALUES (%s, %s, %s)
+            VALUES (?, ?, ?)
             """,
-            (id_receta, paso.nroPaso, paso.texto)
+            (id_receta, paso.nroPaso, paso.texto),
+            fetch=True
         )
+        if not res_paso:
+            raise Exception("No se pudo insertar un paso")
         id_paso = res_paso[0]["idPaso"]
 
         for media in paso.multimedia:
             await ejecutar_consulta_async(
                 """
                 INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
-                VALUES (%s, %s, %s, %s)
+                VALUES (?, ?, ?, ?)
                 """,
                 (id_paso, media.tipo_contenido, media.extension, media.urlContenido)
             )
 
-    for foto in data.fotosAdicionales:
+    for foto in data.fotosAdicionales or []:
         await ejecutar_consulta_async(
             """
             INSERT INTO fotos (idReceta, urlFoto, extension)
-            VALUES (%s, %s, %s)
+            VALUES (?, ?, ?)
             """,
             (id_receta, foto.urlFoto, foto.extension)
         )
@@ -321,32 +322,172 @@ async def crear_receta_completa(data: CrearRecetaRequest, id_usuario: int) -> in
     await ejecutar_consulta_async(
         """
         INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
-        VALUES (%s, GETDATE(), 'pendiente')
+        VALUES (?, GETDATE(), 'pendiente')
+        """,
+        (id_receta,)
+    )
+    print(f"Receta creada con ID: {id_receta}")
+    return id_receta
+
+# Reemplazar receta (borra la receta antigua despues de q crea una nueva)
+async def borrar_receta_completa(id_receta: int, id_usuario: int):
+    # Eliminar referencias en recetasFavoritas
+    await ejecutar_consulta_async("DELETE FROM recetasFavoritas WHERE idReceta = ?", (id_receta,))
+
+    # Eliminar multimedia de pasos
+    await ejecutar_consulta_async("""
+        DELETE multimedia FROM multimedia 
+        INNER JOIN pasos ON multimedia.idPaso = pasos.idPaso 
+        WHERE pasos.idReceta = ?
+    """, (id_receta,))
+
+    # Eliminar pasos
+    await ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,))
+
+    # Eliminar ingredientes utilizados
+    await ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,))
+
+    # Eliminar fotos adicionales
+    await ejecutar_consulta_async("DELETE FROM fotos WHERE idReceta = ?", (id_receta,))
+
+    # Eliminar estado de receta
+    await ejecutar_consulta_async("DELETE FROM estadoReceta WHERE idReceta = ?", (id_receta,))
+
+    # Finalmente eliminar receta
+    await ejecutar_consulta_async("DELETE FROM recetas WHERE idReceta = ?", (id_receta,))
+
+# Actualizar receta
+async def actualizar_receta_completa(id_receta: int, data: CrearRecetaRequest, id_usuario: int) -> None:
+    # 1. Actualizar datos generales en la tabla recetas
+    query_update = """
+        UPDATE recetas
+        SET nombreReceta = ?, descripcionReceta = ?, fotoPrincipal = ?, porciones = ?, cantidadPersonas = ?, idTipo = ?
+        WHERE idReceta = ? AND idUsuario = ?
+    """
+    params_update = (
+        data.nombreReceta,
+        data.descripcionReceta,
+        data.fotoPrincipal,
+        data.porciones,
+        data.cantidadPersonas,
+        data.idTipo,
+        id_receta,
+        id_usuario
+    )
+    resultado = await ejecutar_consulta_async(query_update, params_update)
+    if resultado is None:
+        raise Exception("No se pudo actualizar la receta o la receta no existe para este usuario")
+
+    # 2. Borrar ingredientes relacionados
+    await ejecutar_consulta_async(
+        "DELETE FROM utilizados WHERE idReceta = ?",
+        (id_receta,)
+    )
+
+    # 3. Borrar multimedia y pasos relacionados
+    # Primero borrar multimedia:
+    await ejecutar_consulta_async(
+        """
+        DELETE multimedia 
+        FROM multimedia 
+        INNER JOIN pasos ON multimedia.idPaso = pasos.idPaso
+        WHERE pasos.idReceta = ?
+        """,
+        (id_receta,)
+    )
+    # Luego borrar pasos:
+    await ejecutar_consulta_async(
+        "DELETE FROM pasos WHERE idReceta = ?",
+        (id_receta,)
+    )
+
+    # 4. Borrar fotos adicionales
+    await ejecutar_consulta_async(
+        "DELETE FROM fotos WHERE idReceta = ?",
+        (id_receta,)
+    )
+
+    # 5. Insertar nuevos ingredientes
+    for ing in data.ingredientes:
+        await ejecutar_consulta_async(
+            """
+            INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (id_receta, ing.idIngrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
+        )
+
+    # 6. Insertar nuevos pasos y multimedia
+    for paso in data.pasos:
+        res_paso = await ejecutar_consulta_async(
+            """
+            INSERT INTO pasos (idReceta, nroPaso, texto)
+            OUTPUT INSERTED.idPaso
+            VALUES (?, ?, ?)
+            """,
+            (id_receta, paso.nroPaso, paso.texto),
+            fetch=True
+        )
+        if not res_paso:
+            raise Exception("No se pudo insertar un paso")
+        id_paso = res_paso[0]["idPaso"]
+
+        for media in paso.multimedia:
+            await ejecutar_consulta_async(
+                """
+                INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
+                VALUES (?, ?, ?, ?)
+                """,
+                (id_paso, media.tipo_contenido, media.extension, media.urlContenido)
+            )
+
+    # 7. Insertar fotos adicionales
+    for foto in data.fotosAdicionales or []:
+        await ejecutar_consulta_async(
+            """
+            INSERT INTO fotos (idReceta, urlFoto, extension)
+            VALUES (?, ?, ?)
+            """,
+            (id_receta, foto.urlFoto, foto.extension)
+        )
+
+    # 8. Actualizar estado a pendiente (o la que uses)
+    await ejecutar_consulta_async(
+        """
+        UPDATE estadoReceta SET estado = 'pendiente', fecha_creacion = GETDATE()
+        WHERE idReceta = ?
         """,
         (id_receta,)
     )
 
-    return id_receta
-
-
-"""
-# Reemplazar receta
-async def reemplazar_receta(receta: Receta, user: Usuario):
-    await eliminar_receta_por_nombre_y_usuario(receta.nombre, user)
-    return await crear_recetas(receta, user)
-
-# Eliminar receta por nombre y usuario
-async def eliminar_receta_por_nombre_y_usuario(nombre: str, user: Usuario):
-    recetas = await buscar_recetas_por_campo_exacto("nombre", nombre, get_recetas_collection())
-    for receta in recetas:
-        if receta.get("usuarioCreador") == user.alias:
-            await eliminar_receta(str(receta["_id"]), get_recetas_collection())
-            return True
-
-# Actualizar receta
-async def actualizar_recetas(id: str, receta_data: Receta):
-    receta_data.fecha_publicacion = datetime.now().isoformat()
-    await actualizar_receta(id, receta_data, get_recetas_collection())
-    return {"mensaje": "Receta actualizada. Queda pendiente de aprobación."}
-    
+# Obtener calificaciones de una receta
+async def obtener_calificaciones_receta(id_receta: str) -> List[Dict]:
+    query = """
+        SELECT 
+            c.idCalificacion,
+            c.calificacion,
+            c.comentarios,
+            u.nickname
+        FROM calificaciones c
+        JOIN usuarios u ON c.idUsuario = u.idUsuario
+        WHERE c.idReceta = ?
     """
+    calificaciones = await ejecutar_consulta_async(query, [id_receta], fetch=True)
+    return calificaciones if calificaciones else []
+
+#crear calificación de receta
+async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Calificacion):
+    query_existente = "SELECT * FROM calificaciones WHERE idReceta = ? AND idUsuario = ?"
+    existente = await ejecutar_consulta_async(query_existente, (id_receta, id_usuario), fetch=True)
+
+    if existente:
+        # Devuelve un error que la ruta interpretará
+        return {"error": "Ya has calificado esta receta.", "code": 409}
+
+    query_insert = """
+        INSERT INTO calificaciones (idReceta, idUsuario, calificacion, comentarios)
+        VALUES (?, ?, ?, ?)
+    """
+    await ejecutar_consulta_async(query_insert, (id_receta, id_usuario, calificacion.calificacion, calificacion.comentarios))
+
+    return {"success": True}

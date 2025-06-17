@@ -86,6 +86,7 @@ async def obtener_ofertas_de_curso(id_curso: int) -> List[Dict]:
             s.bonificacionCursos,
             s.tipoPromocion,
             s.promocionCursos,
+            cc.idCronograma,
             cc.vacantesDisponibles
         FROM cronogramaCursos cc
         JOIN sedes s ON cc.idSede = s.idSede
@@ -125,7 +126,7 @@ async def inscribir_alumno_a_curso(id_alumno: int, id_cronograma: int) -> Dict:
     }
 
 # Darse de baja de un curso
-async def dar_de_baja_alumno_de_curso(id_alumno: int, id_cronograma: int) -> Dict:
+async def dar_baja_alumno_de_curso(id_alumno: int, id_cronograma: int) -> Dict:
     # Verificar si existe la inscripción
     query_check = """
         SELECT 1 FROM asistenciaCursos 

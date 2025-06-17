@@ -115,8 +115,20 @@ async def obtener_nickname_por_id(id_usuario: int) -> Optional[str]:
 # Ver recetas favoritas de usuario
 async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
     query = """
-        SELECT r.idReceta FROM recetasFavoritas rf 
-        WHERE rf.idCreador = ?
+        SELECT 
+            r.idReceta,
+            r.nombreReceta,
+            r.descripcionReceta,
+            r.fotoPrincipal,
+            u.nickname,
+            ISNULL(AVG(c.calificacion), 0) AS promedioCalificacion
+        FROM recetas r
+        JOIN usuarios u ON r.idUsuario = u.idUsuario
+        LEFT JOIN calificaciones c ON r.idReceta = c.idReceta
+        WHERE r.idReceta IN (
+            SELECT rf.idReceta FROM recetasFavoritas rf WHERE rf.idCreador = ?
+        )
+        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname
     """
     try:
         recetas = await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
@@ -152,6 +164,15 @@ async def eliminar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
     except Exception as e:
         print(f"Error al eliminar favorita: {e}")
         return False
+
+#verificar receta favorita
+async def verificar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
+    query = """
+        SELECT COUNT(*) AS total FROM recetasFavoritas
+        WHERE idCreador = ? AND idReceta = ?
+    """
+    resultado = await ejecutar_consulta_async(query, (id_usuario, id_receta), fetch=True)
+    return resultado[0]['total'] > 0 if resultado else False
 
 # Convertir usuario a alumno
 async def upgradear_a_alumno(alumno: Alumno) -> bool:

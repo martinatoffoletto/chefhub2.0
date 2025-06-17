@@ -18,20 +18,21 @@ async def get_user_cursos(current_user=Depends(obtener_usuario_actual)):
     if current_user["tipo_usuario"] != "Alumno":
         raise HTTPException(status_code=401, detail="No autorizado")
     cursos = await user_services.obtener_cursos_by_user_id(current_user)
+    print("Cursos del usuario:", cursos)
     return cursos
 
 
 ##ver recetas favoritas de usuario
 @router.get("/me/recetas_favoritas")
 async def get_recetas_favoritas( current_user=Depends(obtener_usuario_actual)):
-    recetas = await user_services.obtener_recetas_favoritas(current_user)
+    recetas = await user_services.obtener_recetas_favoritas(current_user["idUsuario"])
     return recetas
 
 #agregar receta favorita
 @router.post("/me/recetas_favoritas/{receta_id}")
 async def add_receta_favorita(receta_id,current_user=Depends(obtener_usuario_actual)):
     try:
-        await user_services.agregar_receta_favorita(current_user["_id"], receta_id)
+        await user_services.agregar_receta_favorita(current_user["idUsuario"], receta_id)
     except user_services.RecetaYaFavoritaError:
         raise HTTPException(status_code=409, detail="Receta ya favorita")
     return {"msg": "Receta agregada a favoritos"}
@@ -40,10 +41,20 @@ async def add_receta_favorita(receta_id,current_user=Depends(obtener_usuario_act
 @router.delete("/me/recetas_favoritas/{receta_id}")
 async def delete_receta_favorita(receta_id,current_user=Depends(obtener_usuario_actual)):
     try:
-        await user_services.eliminar_receta_favorita(current_user["_id"], receta_id)
+        await user_services.eliminar_receta_favorita(current_user["idUsuario"], receta_id)
     except user_services.RecetaNoFavoritaError:
         raise HTTPException(status_code=404, detail="Receta no favorita")
     return {"msg": "Receta eliminada de favoritos"}
+
+#verificar receta favorita
+@router.get("/me/recetas_favoritas/{receta_id}")
+async def check_receta_favorita(receta_id, current_user=Depends(obtener_usuario_actual)):
+    is_favorite = await user_services.verificar_receta_favorita(current_user["idUsuario"], receta_id)
+    return {"is_favorite": is_favorite}
+
+
+
+
 
 """
 #solicitar upgrade a alumno

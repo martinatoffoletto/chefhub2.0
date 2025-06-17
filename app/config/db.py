@@ -21,9 +21,14 @@ async def startup():
 # Función para cerrar la app
 async def shutdown():
     global pool
-    print("Cerrando la conexión a la base de datos...")
-    pool.close()
-    await pool.wait_closed()
+    try:
+        print("Cerrando la conexión a la base de datos...")
+        pool.close()
+        await pool.wait_closed()
+        print("Conexión cerrada.")
+    except Exception as e:
+        print("Error al cerrar la conexión:", e)
+
 
 # Función asíncrona para ejecutar consultas
 async def ejecutar_consulta_async(

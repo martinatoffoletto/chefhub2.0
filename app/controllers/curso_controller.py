@@ -82,7 +82,7 @@ async def verificar_inscripcion(id: str, user=Depends(obtener_usuario_actual)):
 
 #Ver todas las ofertas de un curso 
 @router.get("/curso/{id}/ofertas")
-async def get_sedes_por_ofertas_id(id: str):
+async def get_ofertas_por_curso(id: str):
     try:
         return await curso_services.obtener_ofertas_de_curso(id)
     except curso_services.OfertasNoExiste:
@@ -108,11 +108,8 @@ async def inscribirse_curso(id_cronograma: str, user=Depends(obtener_usuario_act
 async def baja_curso(id_cronograma: str, user=Depends(obtener_usuario_actual)):
     if user["tipo_usuario"] != "Alumno":
         raise HTTPException(status_code=401, detail="No autorizado")
-    try:
-        await curso_services.dar_baja_alumno_de_curso(user["idUsuario"],id_cronograma)
-        return {"mensaje": "Baja exitosa"}
-    except curso_services.PlazoVencido:
-        raise HTTPException(status_code=403, detail="Plazo vencido para darse de baja")
-    except curso_services.NoInscripto:
-        raise HTTPException(status_code=404, detail="No está inscripto en el curso")
+
+    await curso_services.dar_baja_alumno_de_curso(user["idUsuario"], id_cronograma)
+    return {"mensaje": "Baja exitosa"}
+
 

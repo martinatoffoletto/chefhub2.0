@@ -13,7 +13,9 @@ INSERT INTO usuarios (mail, nickname, habilitado, nombre, direccion, avatar) VAL
 ('fernando.castro@email.com', 'fercast',   'Si', 'Fernando Castro', 'Calle Belgrano 567', 'img/cocinero1.png'),
 ('laura.ramos@email.com',     'laurar',    'Si', 'Laura Ramos',     'Paseo Colon 890', 'img/cocinero1.png'),
 ('diego.torres@email.com',    'dtorres',   'Si', 'Diego Torres',    'Av. San Martin 234', 'img/cocinero1.png'),
-('carolina.vazquez@email.com','carovaz',   'Si', 'Carolina Vázquez','Boulevard Oroño 45', 'img/cocinero1.png');
+('carolina.vazquez@email.com','carovaz',   'Si', 'Carolina Vázquez','Boulevard Oroño 45', 'img/cocinero1.png'),
+('jorge.mendez@email.com', 'jorgem', 'Si', 'Jorge Méndez', 'Av. Corrientes 123', 'img/cocinero2.png'),
+('valeria.suarez@email.com', 'valesu', 'Si', 'Valeria Suárez', 'Calle Libertad 456', 'img/cocinero3.png');
 
 
 INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente) VALUES
@@ -24,7 +26,9 @@ INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuen
 (5, '567890123456', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000005', 500.25),
 (6, '678901234567', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000006', 0.00),
 (7, '789012345678', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000007', 1750.80),
-(8, '890123456789', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000008', 0.00);
+(8, '890123456789', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000008', 0.00),
+(14, '901234567890', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000014', 0.00),
+(15, '012345678901', 'img/dniFrente.jpg', 'img/dniDorso.jpg', '10000000015', 100.00);
 
 INSERT INTO tiposReceta (descripcion) VALUES
 ('Postres y dulces'),
@@ -34,17 +38,26 @@ INSERT INTO tiposReceta (descripcion) VALUES
 ('Sopas y cremas'),
 ('Bebidas'),
 ('Salsas y aderezos'),
-('Panadería y repostería');
+('Panadería y repostería'),
+('Tapas y bocadillos'),
+('Comida rápida');
 
 INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo) VALUES
 (1, 'Lasaña vegetariana de berenjenas', 'Una receta nutritiva y sabrosa de lasaña sin carne, con capas de berenjena, ricotta y salsa de tomate casera.', 'img/rBerenjena.jpg', 8, 4, 3),
 (1, 'Cous cous con vegetales', 'Una comida rápida, sabrosa y colorida con verduras salteadas.', 'img/cousCousveg.jpg', 4, 2, 4),
 (2, 'Rissotto', 'Rissotto cremoso y reconfortante para clima frio.', 'img/rRisotto.jpg', 6, 3, 5),
-(2, 'Pan casero', 'Pan artesanal con corteza crujiente y miga suave.', 'rPanArtesanal.jpg', 1, 10, 8),
+(2, 'Pan casero', 'Pan artesanal con corteza crujiente y miga suave.', 'img/rPanArtesanal.jpg', 1, 10, 8),
 (3, 'Mousse de chocolate', 'Postre ligero y esponjoso de chocolate amargo.', 'img/mousseChoco.jpg', 6, 6, 1),
 (4, 'Cheescake de Frutilla', 'Tarta fría con base de galletitas y relleno de queso crema, cubierta con salsa de frutillas frescas.', 'img/rBerenjena.jpg', 1, 8, 1),
 (4, 'Ensalada tibia de lentejas', 'Una ensalada nutritiva y reconfortante con lentejas, zanahoria, cebolla morada y un toque de limón.', 'img/rBerenjena.jpg', 2, 2, 4),
-(3, 'Empanadas salteñas', 'Empanadas argentinas tradicionales con carne jugosa, cebolla, huevo y especias de Salta.', 'img/rEmpanadasCarne.jpg', 12, 6, 3);
+(3, 'Empanadas salteñas', 'Empanadas argentinas tradicionales con carne jugosa, cebolla, huevo y especias de Salta.', 'img/rEmpanadasCarne.jpg', 12, 6, 3),
+(5, 'Tarta de Manzana', 'Tarta clásica con manzanas frescas y canela.', 'img/manzanaCanela.jpg', 8, 8, 1),
+(6, 'Brownies de Chocolate', 'Brownies húmedos y chocolatosos.', 'img/rBrownies.jpg', 12, 12, 1),
+(7, 'Budín de Banana', 'Budín húmedo de banana y nuez.', 'img/rBudinBanana.jpg', 10, 10, 1),
+(8, 'Empanadas de Espinaca', 'Empanadas rellenas de espinaca y queso.', 'img/empanadasEspinaca.jpg', 12, 6, 3),
+(9, 'Panqueques con Miel', 'Panqueques esponjosos con miel.', 'img/panquequesMiel.jpg', 8, 4, 1),
+(14, 'Pizza Margarita', 'Pizza clásica con tomate, mozzarella y albahaca.', 'img/pizzaMargarita.jpeg', 8, 4, 9),
+(15, 'Sandwich de Pollo', 'Sandwich rápido con pollo, tomate y lechuga.', 'img/sandwichPollo.jpg', 2, 2, 10);
 
 INSERT INTO ingredientes (nombre) VALUES
 ('Cous Cous'),
@@ -64,14 +77,22 @@ INSERT INTO ingredientes (nombre) VALUES
 ('Ajo'),
 ('Huevos'),
 ('Lentejas'),
-('Arroz');
+('Arroz'),
+('Manzana'), ('Canela'), ('Banana'), ('Nuez'), ('Espinaca'), ('Queso'), ('Miel'),
+('Queso rallado'),
+('Tomate'),
+('Pollo'),
+('Jamón'),
+('Leche');
 
 INSERT INTO unidades (descripcion) VALUES
 ('g'),
 ('kg'),
 ('ml'),
 ('l'),
-('taza');
+('taza'),
+('unidad'),
+('rodaja');
 
 INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones) VALUES
 (1, 11, 500, 1, 'Rodajas para capas'),
@@ -97,7 +118,28 @@ INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observacion
 (7, 14, 50, 1, 'Morron picado'),
 (8, 2, 400, 1, 'Carne picada'),
 (8, 5, 150, 1, 'Cebolla picada'),
-(8, 6, 3, 5, 'Huevos para relleno y masa'); 
+(8, 6, 3, 5, 'Huevos para relleno y masa'), 
+(9, 1, 3, 3, 'Manzanas verdes'),
+(9, 2, 2, 1, 'Canela en polvo'),
+(9, 3, 200, 1, 'Harina para la masa'),
+(10, 8, 200, 1, 'Chocolate amargo'),
+(10, 6, 3, 5, 'Huevos'),
+(10, 4, 100, 1, 'Harina'),
+(11, 3, 2, 3, 'Bananas maduras'),
+(11, 4, 200, 1, 'Harina'),
+(11, 9, 50, 1, 'Nuez picada'),
+(12, 5, 300, 1, 'Espinaca cocida'),
+(12, 6, 100, 1, 'Queso cremoso'),
+(12, 4, 200, 1, 'Harina para la masa'),
+(13, 4, 150, 1, 'Harina'),
+(13, 6, 2, 5, 'Huevos'),
+(13, 7, 50, 1, 'Miel'),
+(14, 25, 200, 1, 'Queso rallado para la pizza'),
+(14, 26, 2, 12, 'Rodajas de tomate'),
+(14, 3, 300, 1, 'Harina para la masa'),
+(15, 27, 1, 13, 'Pechuga de pollo cocida'),
+(15, 28, 2, 12, 'Rodajas de jamón'),
+(15, 26, 2, 12, 'Rodajas de tomate');
 
 INSERT INTO calificaciones (idusuario, idReceta, calificacion, comentarios) VALUES -- consideramos puntuacion del 1 al 5
 (1, 1, 5, 'Excelente receta, muy bien explicada y deliciosa.'),
@@ -105,7 +147,14 @@ INSERT INTO calificaciones (idusuario, idReceta, calificacion, comentarios) VALU
 (3, 5, 3, 'El mousse quedó un poco dulce para mi gusto, pero rico.'),
 (5, 5, 5, 'El mousse quedó muy rico.'),
 (7, 1, 5, 'Receta fácil y rápida, muy buena.'),
-(2, 3, 5, 'Muy rica sopa !!');
+(2, 3, 5, 'Muy rica sopa !!'),
+(2, 9, 5, 'Muy rica la tarta de manzana!'),
+(3, 10, 4, 'Brownies bien húmedos.'),
+(4, 11, 5, 'El budín de banana esponjoso.'),
+(5, 12, 4, 'Empanadas sabrosas.'),
+(6, 13, 5, 'Panqueques fáciles y ricos.'),
+(14, 14, 5, 'La pizza salió espectacular.'),
+(15, 15, 4, 'Sandwich rápido y rico.');
 
 INSERT INTO conversiones (idUnidadOrigen, idUnidadDestino, factorConversiones)
 VALUES 
@@ -139,7 +188,28 @@ INSERT INTO pasos (idReceta, nroPaso, texto) VALUES
 (7, 3, 'Aliñar con limón y servir tibio.'),
 (8, 1, 'Preparar el relleno con carne, cebolla y condimentos.'),
 (8, 2, 'Rellenar las tapas de empanadas y cerrar bien.'),
-(8, 3, 'Hornear hasta que estén doradas y crujientes.');
+(8, 3, 'Hornear hasta que estén doradas y crujientes.'),
+(9, 1, 'Preparar la masa con harina y manteca.'),
+(9, 2, 'Cortar las manzanas y mezclar con canela.'),
+(9, 3, 'Armar la tarta y hornear.'),
+(10, 1, 'Derretir el chocolate y mezclar con huevos.'),
+(10, 2, 'Agregar harina y mezclar.'),
+(10, 3, 'Hornear hasta que estén húmedos.'),
+(11, 1, 'Pisar las bananas y mezclar con harina.'),
+(11, 2, 'Agregar nuez y mezclar.'),
+(11, 3, 'Hornear hasta dorar.'),
+(12, 1, 'Saltear la espinaca y mezclar con queso.'),
+(12, 2, 'Rellenar las tapas y cerrar.'),
+(12, 3, 'Hornear hasta dorar.'),
+(13, 1, 'Mezclar harina y huevos.'),
+(13, 2, 'Cocinar los panqueques en sartén.'),
+(13, 3, 'Servir con miel.'),
+(14, 1, 'Preparar la masa de pizza y dejar levar.'),
+(14, 2, 'Agregar salsa de tomate, queso rallado y rodajas de tomate.'),
+(14, 3, 'Hornear hasta que el queso se derrita.'),
+(15, 1, 'Cocinar la pechuga de pollo y cortar en tiras.'),
+(15, 2, 'Armar el sandwich con pollo, jamón y tomate.'),
+(15, 3, 'Servir frío o caliente.');
 
 INSERT INTO fotos (idReceta, urlFoto, extension) VALUES
 (1, 'img/rBerenjena.jpg', '.jpg'),
@@ -149,7 +219,14 @@ INSERT INTO fotos (idReceta, urlFoto, extension) VALUES
 (5, 'img/mousseChoco.jpg', '.jpg'),
 (6, 'img/rCheesecake.jpg', '.jpg'),
 (7, 'img/rLentejas.jpg', '.jpg'),
-(8, 'img/rEmpanadasCarne.jpg', '.jpg');
+(8, 'img/rEmpanadasCarne.jpg', '.jpg'),
+(9, 'img/manzanaCanela.jpg', '.jpg'),
+(10, 'img/rBrownies.jpg', '.jpg'),
+(11, 'img/rBudinBanana.jpg', '.jpg'),
+(12, 'img/empanadasEspinaca.jpg', '.jpg'),
+(13, 'img/panquequesMiel.jpg', '.jpg'),
+(14, 'img/pizzaMargarita.jpeg', '.jpeg'),
+(15, 'img/sandwichPollo.jpg', '.jpg');
 
 INSERT INTO sedes (
     nombreSede, direccionSede, telefonoSede, mailSede, whatsApp, 
@@ -188,6 +265,17 @@ VALUES
     20.00,
     'Descuento del 5%',
     5.00
+),
+(
+    'Sede Centro',
+    'Av. 9 de Julio 1000, CABA',
+    '01140001234',
+    'centro@cocinaedu.ar',
+    '5491198765432',
+    'Descuento del 5%',
+    5.00,
+    'Descuento del 10%',
+    10.00
 );
 
 INSERT INTO cursos (descripcion, contenidos, requerimientos, duracion, precio, modalidad)
@@ -219,14 +307,16 @@ VALUES
  'No hace falta conocimientos previos dado que es un curso de nivel básico.Para los elementos que se usaran, son diferentes cortes de carnes, especias, y tapas de empanadas. ',
  50, 20000.00, 'presencial'),
 ('Curso de Cocina para Niños','Recetas fáciles y seguras para niños: galletitas, pizzetas, muffins, ensaladas divertidas','Edad entre 8 y 13 años, autorización de un adulto', 10,8000.00,'presencial'),
-('Curso de Cocina Vegetariana','Platos sin carne: hamburguesas vegetales, guisos con legumbres, ensaladas completas','Conocimientos básicos de cocina saludable',15,12000.00,'presencial');
+('Curso de Cocina Vegetariana','Platos sin carne: hamburguesas vegetales, guisos con legumbres, ensaladas completas','Conocimientos básicos de cocina saludable',15,12000.00,'presencial'),
+('Curso de Pizzas Artesanales', 'Masa, salsa, toppings, horneado.', 'Ninguno.', 20, 15000.00, 'presencial');
 
 INSERT INTO cronogramaCursos (idSede, idCurso, fechaInicio, fechaFin, vacantesDisponibles)
 VALUES 
 (1, 1, '2025-07-01', '2025-08-15', 12),  -- Palermo - Cocina Asiatica
 (2, 2, '2025-07-10', '2025-08-20', 8),   -- Caballito - Pastelería Creativa
 (3, 3, '2025-08-01', '2025-09-05', 10),  -- Belgrano - Platos Internacionales
-(1, 4, '2025-09-10', '2025-10-25', 15);  -- Palermo - Parrilla
+(1, 4, '2025-09-10', '2025-10-25', 15),  -- Palermo - Parrilla
+(4, 9, '2025-10-01', '2025-11-01', 20);  -- Centro - Pizzas Artesanales
 
 INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
 VALUES 
@@ -239,7 +329,9 @@ VALUES
 (4, 1, '2025-07-02 18:30:00'),
 (6, 1, '2025-07-02 18:30:00'), 
 (2, 4, '2025-09-11 17:00:00'),
-(5, 4, '2025-09-11 17:00:00'); 
+(5, 4, '2025-09-11 17:00:00'),
+(14, 5, '2025-10-02 18:00:00'),
+(15, 5, '2025-10-02 18:00:00'); 
 
 -- extras
 
@@ -257,7 +349,9 @@ VALUES
 (10, 'fercast'),
 (11, 'laurar'),
 (12, 'dtorres'),
-(13, 'carovaz'); 
+(13, 'carovaz'),
+(14, 'jorgem'),
+(15, 'valesu'); 
 
 INSERT INTO estadoReceta (idReceta, estado, fecha_creacion)
 VALUES
@@ -268,7 +362,14 @@ VALUES
 (5, 'aprobado', '2025-05-15 14:23:00'),
 (6, 'aprobado', '2025-05-20 09:45:00'),
 (7, 'pendiente', '2025-06-01 16:30:00'),
-(8, 'pendiente', '2025-06-10 11:15:00');
+(8, 'pendiente', '2025-06-10 11:15:00'),
+(9, 'aprobado', '2025-06-15 10:00:00'),
+(10, 'aprobado', '2025-06-16 11:00:00'),
+(11, 'pendiente', '2025-06-17 12:00:00'),
+(12, 'pendiente', '2025-06-18 13:00:00'),
+(13, 'aprobado', '2025-06-19 14:00:00'),
+(14, 'aprobado', '2025-06-20 10:00:00'),
+(15, 'pendiente', '2025-06-21 11:00:00');
 
 INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
 VALUES 
@@ -277,4 +378,18 @@ VALUES
 (3, 'foto', '.jpg', 'recetaBerenjenaP3.jpg'),
 (22, 'foto', '.jpg', 'recetaEmpanadasCarneP0.jpg'),
 (5, 'foto', '.jpg', 'cousCousVegP2.jpg'),
-(14, 'foto', '.jpg', 'mousseChocoP2.jpg');
+(14, 'foto', '.jpg', 'mousseChocoP2.jpg'),
+(37, 'foto', '.jpg', 'pizzaMargaritaP1.jpg'),
+(40, 'foto', '.jpg', 'sandwichPolloP1.jpg');
+
+
+INSERT INTO recetasFavoritas (idCreador, idReceta) VALUES
+(1, 9),   -- Ana Gómez favorita Tarta de Manzana
+(2, 10),  -- Lucas Rojas favorita Brownies de Chocolate
+(3, 11),  -- María López favorita Budín de Banana
+(4, 14),  -- Juan Pérez favorita Pizza Margarita
+(5, 15),  -- Carla Díaz favorita Sandwich de Pollo
+(14, 1),  -- Jorge Méndez favorita Lasaña vegetariana de berenjenas
+(15, 2);  -- Valeria Suárez favorita Cous cous con vegetales
+
+-- Puedes agregar más relaciones según tus usuarios y recetas existentes.

@@ -2,10 +2,11 @@ from fastapi import APIRouter, HTTPException, status, Depends, Body, Path, Query
 from typing import List, Optional
 from app.services import receta_service  
 from app.models.receta import *
+from app.models.calificacion import *
 from app.services.auth_service import obtener_usuario_actual, obtener_usuario_actual_opcional
 from app.models.appError import AppError
 import shutil
-import uuid
+import uuid, os
 
 router = APIRouter(prefix="/recetas", tags=["Recetas"])
 
@@ -91,7 +92,6 @@ async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
         raise HTTPException(status_code=e.code, detail=e.message)
 
 
-
 #crear receta
 @router.post("/")
 async def post_receta(
@@ -105,38 +105,77 @@ async def post_receta(
         print("Error:", e)
         raise HTTPException(status_code=500, detail="Ocurrió un error al crear la receta")
 
+#reemplazar receta
+@router.put("/reemplazar/{id_receta_antigua}")
+async def reemplazar_receta(id_receta_antigua: int, data: CrearRecetaRequest, user=Depends(obtener_usuario_actual)):
+    try:
+        print("Reemplazando receta:")
+        id_nueva = await receta_service.crear_receta_completa(data, user["idUsuario"])
+        await receta_service.borrar_receta_completa(id_receta_antigua, user["idUsuario"])
+        return {"mensaje": "Receta reemplazada correctamente", "idNuevaReceta": id_nueva}
 
-# Configuración
-STATIC_DIR = "static/img"
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+#actualizar receta
+@router.put("/recetas/{id_receta}")
+async def actualizar_receta(
+    id_receta: int,
+    data: CrearRecetaRequest,
+    user=Depends(obtener_usuario_actual)
+):
+    try:
+        await receta_service.actualizar_receta_completa(id_receta, data, user["idUsuario"])
+        return {"mensaje": "Receta actualizada correctamente", "idReceta": id_receta}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+########## Configuración para manejo de multimedia ################
+UPLOAD_FOLDER = "static/img"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @router.post("/upload/")
 async def upload_media(file: UploadFile = File(...)):
-    filename = f"{uuid.uuid4()}.{file.filename.split('.')[-1]}"
-    file_location = f"static/img/{filename}"
+    extension = file.filename.split(".")[-1]
+    filename = f"{uuid.uuid4()}.{extension}"
+    file_location = f"{UPLOAD_FOLDER}/{filename}"
 
     try:
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Error guardando archivo")
 
-    # Retornar la URL pública para el archivo subido
-    url = f"/static/img/{filename}"
+    url = f"img/{filename}"
     return {"url": url}
 
+######################################################################
 
-"""
-#reemplazar receta
-@router.post("/reemplazar")
-async def reemplazar_receta(receta: Receta, user=Depends(obtener_usuario_actual)):
-    await receta_service.eliminar_receta_por_nombre_y_usuario(receta.nombre, user)
-    return await receta_service.reemplazar_receta(receta, user)
 
-#actualizar receta
-@router.put("/{id}")
-async def editar_receta( receta: Receta, user=Depends(obtener_usuario_actual), id: str = Path()):
-    receta.estado = EstadoReceta.pendiente 
-    await receta_service.actualizar_recetas(id, receta)
-    return {"mensaje": "Receta actualizada. Queda pendiente de aprobación."}
 
-"""
+#obtener calificaciones de una receta
+@router.get("/{id}/calificaciones", status_code=200)
+async def get_calificaciones_receta(id: str = Path(...)):
+    try:
+        calificaciones = await receta_service.obtener_calificaciones_receta(id)
+        return calificaciones
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener calificaciones: {str(e)}")
+
+#calificar receta
+@router.post("/{id}/calificar")
+async def calificar_receta_endpoint(
+    calificacion: Calificacion,
+    id: str = Path(...),
+    user=Depends(obtener_usuario_actual)
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="No autorizado")
+
+    resultado = await receta_service.calificar_receta(id, user["idUsuario"], calificacion)
+
+    if resultado.get("error"):
+        raise HTTPException(status_code=resultado.get("code", 400), detail=resultado["error"])
+
+    return {"mensaje": "Receta calificada correctamente"}
