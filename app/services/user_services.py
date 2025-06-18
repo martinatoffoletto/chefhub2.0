@@ -29,6 +29,27 @@ async def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
 
     return id_user
 
+#registro alumno
+async def crear_alumno(alumno:Alumno)-> Optional[int]:
+    query_user="""
+        INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
+        VALUES(?,?,?,?,?,?)
+    """
+
+    await ejecutar_consulta_async(query_user, (
+        alumno.idAlumno,
+        alumno.numeroTarjeta,
+        alumno.dniFrente,
+        alumno.dniFondo,
+        alumno.tramite,
+        alumno.cuentaCorriente
+    ))
+
+    id_user_result=await ejecutar_consulta_async("SELECT TOP 1 idAlumno as id FROM alumnos ORDER BY idAlumno DESC", fetch=True)
+    id_user=id_user_result[0]['id'] if id_user_result else None
+
+    return id_user
+
 
 # Buscar usuario por ID (con datos de alumno y contraseña)
 async def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
