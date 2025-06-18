@@ -34,10 +34,7 @@ async def get_curso(id: str, user=Depends(obtener_usuario_actual)):
 #Ver  cursos por nombre 
 @router.get("/curso/search/{nombre}")
 async def get_curso_nombre(nombre: str):
-    curso = await curso_services.buscar_curso_por_nombre(nombre)
-    if not curso:
-        raise HTTPException(status_code=404, detail="Curso no encontrado")
-    
+    curso = await curso_services.buscar_curso_por_nombre(nombre)   
     return curso
 
 

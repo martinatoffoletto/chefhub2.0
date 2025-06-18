@@ -37,6 +37,10 @@ async def get_recetas(
     )
     return recetas
 
+
+
+
+
 # Obtener todos los ingredientes (id y nombre)
 @router.get("/ingredientes", status_code=200)
 async def get_ingredientes():
