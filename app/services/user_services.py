@@ -174,6 +174,16 @@ async def verificar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
     resultado = await ejecutar_consulta_async(query, (id_usuario, id_receta), fetch=True)
     return resultado[0]['total'] > 0 if resultado else False
 
+#obtener notificaciones
+async def obtener_notificaciones_por_usuario(id_usuario: int):
+    query = """
+        SELECT idNotificacion, descripcion, fecha_envio
+        FROM notificaciones
+        WHERE idUsuario = ?
+        ORDER BY fecha_envio DESC
+    """
+    return await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
+
 # Convertir usuario a alumno
 async def upgradear_a_alumno(alumno: Alumno) -> bool:
     query = """

@@ -74,12 +74,22 @@ async def get_unidades():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener unidades: {str(e)}")
 
+#obtener tabla conversiones
+@router.get("/conversiones", status_code=200)
+async def get_conversiones():
+    try:
+        conversiones = await receta_service.listar_conversiones()
+        return conversiones
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener conversiones: {str(e)}")
+    
 #Ver receta por id
 @router.get("/{id}", status_code=200) 
 async def get_receta_por_id(id: str = Path(...)):
     receta = await receta_service.obtener_receta_detallada(id)
     if not receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
+    print(receta)
     return receta
 
 

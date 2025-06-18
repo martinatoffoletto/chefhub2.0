@@ -403,3 +403,52 @@ INSERT INTO recetasFavoritas (idCreador, idReceta) VALUES
 (14, 1),  -- Jorge Méndez favorita Lasaña vegetariana de berenjenas
 (15, 2);  -- Valeria Suárez favorita Cous cous con vegetales
 
+INSERT INTO notificaciones (descripcion, idUsuario) VALUES
+-- Ana Gómez (idUsuario = 1)
+('Tu receta "Lasaña vegetariana de berenjenas" fue aprobada.', 1),
+('Tu receta "Cous cous con vegetales" está pendiente de aprobación.', 1),
+('Recibiste una nueva calificación en "Lasaña vegetariana de berenjenas".', 1),
+('Tu comentario fue aprobado en "Lasaña vegetariana de berenjenas".', 1),
+('¡Tu receta "Tarta de Manzana" fue marcada como favorita!', 1),
+
+-- Lucas Rojas (idUsuario = 2)
+('Tu receta "Rissotto" fue aprobada.', 2),
+('Recibiste una nueva calificación en "Rissotto".', 2),
+('Tu comentario fue aprobado en "Rissotto".', 2),
+('Tu receta "Brownies de Chocolate" fue aprobada.', 2),
+('¡Tu receta "Brownies de Chocolate" fue marcada como favorita!', 2),
+
+-- María López (idUsuario = 3)
+('Tu receta "Mousse de chocolate" fue aprobada.', 3),
+('Recibiste una nueva calificación en "Mousse de chocolate".', 3),
+('Tu comentario fue aprobado en "Mousse de chocolate".', 3),
+('Tu receta "Budín de Banana" está pendiente de aprobación.', 3),
+('¡Tu receta "Budín de Banana" fue marcada como favorita!', 3),
+
+-- Juan Pérez (idUsuario = 4)
+('Tu receta "Cheescake de Frutilla" fue aprobada.', 4),
+('Tu receta "Ensalada tibia de lentejas" está pendiente de aprobación.', 4),
+('Recibiste una nueva calificación en "Cheescake de Frutilla".', 4),
+('Tu comentario fue aprobado en "Cheescake de Frutilla".', 4),
+('¡Tu receta "Pizza Margarita" fue marcada como favorita!', 4),
+
+-- Carla Díaz (idUsuario = 5)
+('Tu receta "Tarta de Manzana" fue aprobada.', 5),
+('Recibiste una nueva calificación en "Tarta de Manzana".', 5),
+('Tu comentario fue aprobado en "Tarta de Manzana".', 5),
+('Tu receta "Empanadas de Espinaca" está pendiente de aprobación.', 5),
+('¡Tu receta "Sandwich de Pollo" fue marcada como favorita!', 5),
+
+-- Jorge Méndez (idUsuario = 14)
+('Tu receta "Pizza Margarita" fue aprobada.', 14),
+('Recibiste una nueva calificación en "Pizza Margarita".', 14),
+('Tu comentario fue aprobado en "Pizza Margarita".', 14),
+('Tu receta "Lasaña vegetariana de berenjenas" fue marcada como favorita.', 14),
+('¡Tu receta "Lasaña vegetariana de berenjenas" fue marcada como favorita!', 14),
+
+-- Valeria Suárez (idUsuario = 15)
+('Tu receta "Sandwich de Pollo" fue aprobada.', 15),
+('Recibiste una nueva calificación en "Sandwich de Pollo".', 15),
+('Tu comentario fue aprobado en "Sandwich de Pollo".', 15),
+('Tu receta "Cous cous con vegetales" fue marcada como favorita.', 15),
+('¡Tu receta "Cous cous con vegetales" fue marcada como favorita!', 15);

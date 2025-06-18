@@ -185,13 +185,13 @@ CREATE TABLE recetasFavoritas (
 );
 
 
---CREATE TABLE notificaciones (
---    idNotificacion INT NOT NULL IDENTITY CONSTRAINT pk_idNotificacion PRIMARY KEY,
---    descripcion VARCHAR(100) NOT NULL,
---    idUsuario int not null,
---    fecha_envio DATETIME NOT NULL DEFAULT GETDATE(),
---    CONSTRAINT fk_idUsuario_usuario FOREIGN KEY (idUsuario) REFERENCES usuarios(idUsuario)
---);
+CREATE TABLE notificaciones (
+    idNotificacion INT NOT NULL IDENTITY CONSTRAINT pk_idNotificacion PRIMARY KEY,
+    descripcion VARCHAR(100) NOT NULL,
+    idUsuario int not null,
+    fecha_envio DATETIME NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT fk_idUsuario_usuario FOREIGN KEY (idUsuario) REFERENCES usuarios(idUsuario)
+);
 
 --create table fotosCursos(
 --	idfoto int not null identity constraint pk_fotos primary key,

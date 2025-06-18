@@ -53,7 +53,12 @@ async def check_receta_favorita(receta_id, current_user=Depends(obtener_usuario_
     return {"is_favorite": is_favorite}
 
 
-
+#ver notificaciones de usuario
+@router.get("/me/notificaciones")
+async def obtener_mis_notificaciones(current_user=Depends(obtener_usuario_actual)):
+    notificaciones = await user_services.obtener_notificaciones_por_usuario(current_user["idUsuario"])
+    print(notificaciones)
+    return {"notificaciones": notificaciones}
 
 
 """

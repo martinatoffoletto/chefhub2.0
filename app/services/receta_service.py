@@ -130,6 +130,22 @@ async def listar_unidades() -> List[Dict]:
     unidades = await ejecutar_consulta_async(query, fetch=True)
     return unidades if unidades else []
 
+#listar conversiones
+async def listar_conversiones() -> List[Dict]:
+    """
+    Devuelve todas las conversiones entre unidades (idUnidadOrigen, idUnidadDestino, factorConversiones)
+    """
+    query = """
+        SELECT 
+            idConversion,
+            idUnidadOrigen,
+            idUnidadDestino,
+            factorConversiones
+        FROM conversiones
+    """
+    conversiones = await ejecutar_consulta_async(query, fetch=True)
+    print(conversiones)
+    return conversiones if conversiones else []
 
 #obtener receta por id 
 async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
