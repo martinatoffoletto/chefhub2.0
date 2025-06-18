@@ -104,7 +104,7 @@ async def validar_alias(username: str):
 async def enviar_codigo_mail(email: str, codigo: str):
     try:
         sender = "chefhubemail@gmail.com"
-        password = "chefhubapp"
+        password = "vbqo gjpy pdul rnum"
         subject = "Verificación de Email - ChefHub"
         body = (
             f"¡Hola! Ingresa este código en la aplicación. "
@@ -147,6 +147,16 @@ async def create_user(usuario:Usuario, password:str):
         id_user = await crear_usuario(usuario, password=password)
         if id_user is None:
             raise HTTPException(status_code=500, detail="Error al crear usuario")
-        return {"id_usuario": id_user}
+        return {id_user}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+async def create_student(alumno:Alumno):
+    try:
+        id_user=await crear_alumno(alumno=alumno)
+        if id_user is None:
+            raise HTTPException(status_code=500, detail="Error al crear alumno")
+        return (id_user)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
