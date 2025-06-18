@@ -25,6 +25,7 @@ async def listar_recetas(
             r.descripcionReceta,
             r.fotoPrincipal,
             u.nickname,
+            u.avatar,
             ISNULL(AVG(c.calificacion), 0) AS promedioCalificacion
         FROM recetas r
         JOIN usuarios u ON r.idUsuario = u.idUsuario
@@ -86,7 +87,7 @@ async def listar_recetas(
         query += " WHERE " + " AND ".join(filtros)
 
     query += """
-        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname
+        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname, u.avatar
     """
 
     if ordenar_por == "reciente":
@@ -98,11 +99,10 @@ async def listar_recetas(
 
     recetas = await ejecutar_consulta_async(query, params, fetch=True)
 
-    # Aplico el límite si se especifica
     if limite:
         recetas = recetas[:limite]
 
-    print(f"Recetas encontradas: {len(recetas)}")
+    print(f"Recetas encontradas: {recetas}")
     return recetas if recetas else []
 
 #listar todos los ingredientes
