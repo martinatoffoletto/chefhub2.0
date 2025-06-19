@@ -176,6 +176,15 @@ CREATE TABLE estadoReceta (
     CONSTRAINT fk_estadoReceta_receta FOREIGN KEY (idReceta) REFERENCES recetas(idReceta)
 );
 
+CREATE TABLE estadoComentario(
+    idEstadoComentario INT NOT NULL IDENTITY CONSTRAINT pk_idEstadoComentario PRIMARY KEY,
+    idCalificacion INT NOT NULL,
+    estado varchar(20) not null,
+    fechaEstado DATETIME NOT NULL DEFAULT GETDATE(),
+    observaciones VARCHAR(50) NOT NULL,
+    CONSTRAINT fk_idCalificacion FOREIGN KEY (idCalificacion) REFERENCES calificaciones(idCalificacion)
+);
+
 CREATE TABLE recetasFavoritas (
     idCreador INT NOT NULL,
     idReceta INT NOT NULL,
