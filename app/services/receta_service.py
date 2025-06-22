@@ -4,7 +4,12 @@ from app.models.usuario import *
 from app.models.appError import AppError
 from datetime import datetime
 from app.models.calificacion import *
-
+import os
+from pathlib import Path
+from fastapi import UploadFile
+from uuid import uuid4
+import shutil
+import re
 ############ LOGICA DE NEGOCIO RECETAS ############
 
 # Ver todas las recetas por orden alfabético  
@@ -273,7 +278,7 @@ async def verificar_receta(id_usuario: int, nombre: str):
     }
 
 # Crear receta
-async def crear_receta_completa(data: CrearRecetaRequest, id_usuario: int) -> int:
+async def crear_receta_completa(data: dict, id_usuario: int) -> int:
     # Devuelve el id de la receta creada, o lanza un error si algo falla
     query_receta = """
         INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo)
@@ -373,7 +378,7 @@ async def borrar_receta_completa(id_receta: int, id_usuario: int):
     await ejecutar_consulta_async("DELETE FROM recetas WHERE idReceta = ?", (id_receta,))
 
 # Actualizar receta
-async def actualizar_receta_completa(id_receta: int, data: CrearRecetaRequest, id_usuario: int) -> None:
+async def actualizar_receta_completa(id_receta: int, data: dict, id_usuario: int) -> None:
     # 1. Actualizar datos generales en la tabla recetas
     query_update = """
         UPDATE recetas
@@ -547,3 +552,31 @@ async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Califi
 
     return {"success": True, "idCalificacion": id_calificacion}
 
+########################## guardar archivos multimedia ##########################
+
+
+RAIZ_PROYECTO = Path(__file__).parent.parent.parent.resolve()
+RUTA_IMG = RAIZ_PROYECTO / "static" / "img"
+
+async def guardar_archivo(upload_file: UploadFile) -> str:
+    print(f"Guardando archivo: {upload_file.filename} con tipo {upload_file.content_type}")
+    os.makedirs(RUTA_IMG, exist_ok=True)
+
+    extension = Path(upload_file.filename).suffix
+    nombre_archivo = f"{uuid4().hex}{extension}"
+    ruta_completa = RUTA_IMG / nombre_archivo
+
+    with open(ruta_completa, "wb") as buffer:
+        shutil.copyfileobj(upload_file.file, buffer)
+
+    url_relativa = f"/img/{nombre_archivo}"
+    return url_relativa
+
+def extraer_indice(filename: str) -> int:
+    # Buscar el patrón paso_X_ donde X es el número
+    match = re.search(r"paso_(\d+)_", filename)
+    if match:
+        return int(match.group(1))
+    else:
+        # Por si no se encuentra, podés devolver -1 o lanzar error
+        return -1
