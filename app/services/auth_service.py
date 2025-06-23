@@ -101,17 +101,26 @@ async def validar_alias(username: str):
     exists=await buscar_usuario_por_alias(username)
     return not exists
 
-async def enviar_codigo_mail(email: str, codigo: str):
+async def enviar_codigo_mail(email: str, codigo: str, subject:str):
     try:
         sender = "chefhubemail@gmail.com"
         password = "vbqo gjpy pdul rnum"
-        subject = "Verificación de Email - ChefHub"
-        body = (
+        subject = subject
+        if (subject == "Registro"):
+            body = (
             f"¡Hola! Ingresa este código en la aplicación. "
             f"Recuerda: tiene una validez de 24 HORAS.\n\n"
             f"CODIGO: {codigo}\n\n"
             f"Si desconoces esta acción, ignora este mensaje."
         )
+        if (subject == "Olvidé mi contraseña"):
+            body = (
+            f"¡Hola! Parece que olvidate tu contraseña de Chefhub. Ingresá el siguiente código en la aplicación "
+            f"Recuerda: tiene una validez de 30 MINUTOS.\n\n"
+            f"CODIGO: {codigo}\n\n"
+            f"Si desconoces esta acción, ignora este mensaje."
+        )
+        
 
         msg = EmailMessage()
         msg['From'] = sender
