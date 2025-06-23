@@ -142,6 +142,7 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
             r.descripcionReceta,
             r.fotoPrincipal,
             u.nickname,
+            u.avatar,
             ISNULL(AVG(c.calificacion), 0) AS promedioCalificacion
         FROM recetas r
         JOIN usuarios u ON r.idUsuario = u.idUsuario
@@ -149,7 +150,7 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
         WHERE r.idReceta IN (
             SELECT rf.idReceta FROM recetasFavoritas rf WHERE rf.idCreador = ?
         )
-        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname
+        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname, u.avatar
     """
     try:
         recetas = await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
@@ -157,7 +158,6 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
     except Exception as e:
         print(f"Error al obtener favoritas: {e}")
         return []
-
 
 # Agregar receta favorita
 async def agregar_receta_favorita(id_usuario: int, id_receta: int) -> bool:

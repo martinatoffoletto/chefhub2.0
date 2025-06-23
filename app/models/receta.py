@@ -1,5 +1,4 @@
-from app.config.db import ejecutar_consulta_async
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict,Any
 from pydantic import BaseModel
 from enum import Enum
 from datetime import datetime
@@ -49,7 +48,7 @@ class Multimedia(BaseModel):
 
 class Paso(BaseModel):
     idPaso: Optional[int]
-    idReceta: int
+    idReceta: Optional[int]
     nroPaso: int
     texto: str
 
@@ -83,3 +82,24 @@ class Receta(BaseModel):
     cantidadPersonas: Optional[int] = None
     idTipo: int
 
+#extras para crear
+
+class Ingredientes(BaseModel):
+    nombre: str
+    cantidad: float
+    idUnidad: int
+    observaciones: Optional[str] = None
+
+
+class Pasos(BaseModel):
+    nroPaso: int
+    texto: str
+
+class RecetaIn(BaseModel):
+    nombreReceta: str
+    descripcionReceta: str
+    porciones: int
+    cantidadPersonas: int
+    tipo: str
+    ingredientes: List[Ingredientes]
+    pasos: List[Pasos]

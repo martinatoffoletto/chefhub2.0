@@ -1,8 +1,6 @@
 from app.services.user_services import obtener_nickname_por_id
 from app.models.receta import *
 from app.models.usuario import *
-from app.models.appError import AppError
-from datetime import datetime
 from app.models.calificacion import *
 import os
 from pathlib import Path
@@ -107,7 +105,6 @@ async def listar_recetas(
     if limite:
         recetas = recetas[:limite]
 
-    print(f"Recetas encontradas: {recetas}")
     return recetas if recetas else []
 
 #listar todos los ingredientes
@@ -124,7 +121,6 @@ async def listar_tipos_receta() -> List[Dict]:
     query = "SELECT idTipo, descripcion FROM TiposReceta"
     tipos = await ejecutar_consulta_async(query, fetch=True)
     return tipos if tipos else []
-
 
 #listar todas las unidades
 async def listar_unidades() -> List[Dict]:
@@ -262,84 +258,90 @@ async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Op
 # Verificar si la receta ya existe para el usuario
 async def verificar_receta(id_usuario: int, nombre: str):
     receta_id = await buscar_receta_por_usuario_y_nombre(id_usuario, nombre)
+    print(f"Verificando receta '{nombre}' para usuario {id_usuario}: {receta_id}")
     if receta_id:
-        raise AppError(
-            409,
-            {
-                "existe": True,
-                "mensaje": "Receta ya existe",
-                "receta_id": str(receta_id),
-            },
-        )
+        print(f"Receta ya existe con ID: {receta_id}")
+        return {
+            "existe": True,
+            "mensaje": "Receta ya existe",
+            "receta_id": str(receta_id),
+        }
     return {
         "existe": False,
         "mensaje": "Receta nueva. Podés comenzar a cargarla.",
         "nombre": nombre,
     }
 
+
 # Crear receta
-async def crear_receta_completa(data: dict, id_usuario: int) -> int:
-    # Devuelve el id de la receta creada, o lanza un error si algo falla
+async def crear_receta_completa(data: RecetaIn, id_usuario: int) -> int:
+    # Buscar o crear tipo
+    query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
+    resultado_tipo = await ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True)
+    if resultado_tipo:
+        id_tipo = resultado_tipo[0]["idTipo"]
+    else:
+        insert_tipo = """
+            INSERT INTO tiposReceta (descripcion)
+            OUTPUT INSERTED.idTipo
+            VALUES (?)
+        """
+        res_tipo = await ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True)
+        id_tipo = res_tipo[0]["idTipo"]
+
+    # Insertar receta (sin fotoPrincipal)
     query_receta = """
-        INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, fotoPrincipal, porciones, cantidadPersonas, idTipo)
+        INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, porciones, cantidadPersonas, idTipo)
         OUTPUT INSERTED.idReceta
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
     """
     receta_params = (
         id_usuario,
         data.nombreReceta,
         data.descripcionReceta,
-        data.fotoPrincipal,
         data.porciones,
         data.cantidadPersonas,
-        data.idTipo
+        id_tipo
     )
     resultado = await ejecutar_consulta_async(query_receta, receta_params, fetch=True)
     if not resultado:
         raise Exception("No se pudo insertar la receta")
     id_receta = resultado[0]["idReceta"]
 
+    # Insertar ingredientes (buscar o crear)
     for ing in data.ingredientes:
+        query_ing = "SELECT idIngrediente FROM ingredientes WHERE nombre = ?"
+        res_ing = await ejecutar_consulta_async(query_ing, (ing.nombre,), fetch=True)
+        if res_ing:
+            id_ingrediente = res_ing[0]["idIngrediente"]
+        else:
+            insert_ing = """
+                INSERT INTO ingredientes (nombre)
+                OUTPUT INSERTED.idIngrediente
+                VALUES (?)
+            """
+            nuevo_ing = await ejecutar_consulta_async(insert_ing, (ing.nombre,), fetch=True)
+            id_ingrediente = nuevo_ing[0]["idIngrediente"]
+
         await ejecutar_consulta_async(
             """
             INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (id_receta, ing.idIngrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
+            (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
         )
 
+    # Insertar pasos (sin multimedia)
     for paso in data.pasos:
-        res_paso = await ejecutar_consulta_async(
-            """
-            INSERT INTO pasos (idReceta, nroPaso, texto)
-            OUTPUT INSERTED.idPaso
-            VALUES (?, ?, ?)
-            """,
-            (id_receta, paso.nroPaso, paso.texto),
-            fetch=True
-        )
-        if not res_paso:
-            raise Exception("No se pudo insertar un paso")
-        id_paso = res_paso[0]["idPaso"]
-
-        for media in paso.multimedia:
-            await ejecutar_consulta_async(
-                """
-                INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
-                VALUES (?, ?, ?, ?)
-                """,
-                (id_paso, media.tipo_contenido, media.extension, media.urlContenido)
-            )
-
-    for foto in data.fotosAdicionales or []:
         await ejecutar_consulta_async(
             """
-            INSERT INTO fotos (idReceta, urlFoto, extension)
+            INSERT INTO pasos (idReceta, nroPaso, texto)
             VALUES (?, ?, ?)
             """,
-            (id_receta, foto.urlFoto, foto.extension)
+            (id_receta, paso.nroPaso, paso.texto)
         )
 
+    # Insertar estado inicial
     await ejecutar_consulta_async(
         """
         INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
@@ -347,138 +349,154 @@ async def crear_receta_completa(data: dict, id_usuario: int) -> int:
         """,
         (id_receta,)
     )
+
     print(f"Receta creada con ID: {id_receta}")
     return id_receta
+   
 
 # Reemplazar receta (borra la receta antigua despues de q crea una nueva)
-async def borrar_receta_completa(id_receta: int, id_usuario: int):
-    # Eliminar referencias en recetasFavoritas
-    await ejecutar_consulta_async("DELETE FROM recetasFavoritas WHERE idReceta = ?", (id_receta,))
+async def borrar_receta_completa(id_receta: int):
+    try:
+        # 1. Eliminar multimedia (depende de pasos)
+        query_multimedia = """
+            DELETE m
+            FROM multimedia m
+            JOIN pasos p ON m.idPaso = p.idPaso
+            WHERE p.idReceta = ?
+        """
+        await ejecutar_consulta_async(query_multimedia, (id_receta,))
 
-    # Eliminar multimedia de pasos
-    await ejecutar_consulta_async("""
-        DELETE multimedia FROM multimedia 
-        INNER JOIN pasos ON multimedia.idPaso = pasos.idPaso 
-        WHERE pasos.idReceta = ?
-    """, (id_receta,))
+        # 2. Eliminar pasos
+        query_pasos = "DELETE FROM pasos WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_pasos, (id_receta,))
 
-    # Eliminar pasos
-    await ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,))
+        # 3. Eliminar fotos
+        query_fotos = "DELETE FROM fotos WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_fotos, (id_receta,))
 
-    # Eliminar ingredientes utilizados
-    await ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,))
+        # 4. Eliminar utilizados (ingredientes de receta)
+        query_utilizados = "DELETE FROM utilizados WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_utilizados, (id_receta,))
 
-    # Eliminar fotos adicionales
-    await ejecutar_consulta_async("DELETE FROM fotos WHERE idReceta = ?", (id_receta,))
+        # 5. Eliminar calificaciones relacionadas (con estados también)
+        query_estado_calificaciones = """
+            DELETE ec
+            FROM estadoComentario ec
+            JOIN calificaciones c ON ec.idCalificacion = c.idCalificacion
+            WHERE c.idReceta = ?
+        """
+        await ejecutar_consulta_async(query_estado_calificaciones, (id_receta,))
 
-    # Eliminar estado de receta
-    await ejecutar_consulta_async("DELETE FROM estadoReceta WHERE idReceta = ?", (id_receta,))
+        query_calificaciones = "DELETE FROM calificaciones WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_calificaciones, (id_receta,))
 
-    # Finalmente eliminar receta
-    await ejecutar_consulta_async("DELETE FROM recetas WHERE idReceta = ?", (id_receta,))
+        # 6. Eliminar estados de la receta
+        query_estado_receta = "DELETE FROM estadoReceta WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_estado_receta, (id_receta,))
+
+        # 7. Eliminar de recetas favoritas
+        query_favoritos = "DELETE FROM recetasFavoritas WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_favoritos, (id_receta,))
+
+        # 8. Finalmente, eliminar la receta
+        query_receta = "DELETE FROM recetas WHERE idReceta = ?"
+        await ejecutar_consulta_async(query_receta, (id_receta,))
+
+        print(f"✅ Receta {id_receta} y todas sus relaciones fueron eliminadas.")
+        return True
+    except Exception as e:
+        print(f"❌ Error al eliminar la receta {id_receta}: {e}")
+        return False
 
 # Actualizar receta
-async def actualizar_receta_completa(id_receta: int, data: dict, id_usuario: int) -> None:
-    # 1. Actualizar datos generales en la tabla recetas
-    query_update = """
-        UPDATE recetas
-        SET nombreReceta = ?, descripcionReceta = ?, fotoPrincipal = ?, porciones = ?, cantidadPersonas = ?, idTipo = ?
-        WHERE idReceta = ? AND idUsuario = ?
-    """
-    params_update = (
-        data.nombreReceta,
-        data.descripcionReceta,
-        data.fotoPrincipal,
-        data.porciones,
-        data.cantidadPersonas,
-        data.idTipo,
-        id_receta,
-        id_usuario
-    )
-    await ejecutar_consulta_async(query_update, params_update)
+async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario: int) -> bool:
+    try:
+        # Buscar o crear tipo
+        query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
+        resultado_tipo = await ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True)
+        if resultado_tipo:
+            id_tipo = resultado_tipo[0]["idTipo"]
+        else:
+            insert_tipo = """
+                INSERT INTO tiposReceta (descripcion)
+                OUTPUT INSERTED.idTipo
+                VALUES (?)
+            """
+            res_tipo = await ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True)
+            id_tipo = res_tipo[0]["idTipo"]
 
-    # 2. Borrar ingredientes relacionados
-    await ejecutar_consulta_async(
-        "DELETE FROM utilizados WHERE idReceta = ?",
-        (id_receta,)
-    )
-
-    # 3. Borrar multimedia y pasos relacionados
-    # Primero borrar multimedia:
-    await ejecutar_consulta_async(
+        # Actualizar la receta principal
+        query_update = """
+            UPDATE recetas
+            SET nombreReceta = ?, descripcionReceta = ?, porciones = ?, cantidadPersonas = ?, idTipo = ?
+            WHERE idReceta = ? AND idUsuario = ?
         """
-        DELETE multimedia 
-        FROM multimedia 
-        INNER JOIN pasos ON multimedia.idPaso = pasos.idPaso
-        WHERE pasos.idReceta = ?
-        """,
-        (id_receta,)
-    )
+        await ejecutar_consulta_async(query_update, (
+            data.nombreReceta,
+            data.descripcionReceta,
+            data.porciones,
+            data.cantidadPersonas,
+            id_tipo,
+            id_receta,
+            id_usuario
+        ))
 
-    # Luego borrar pasos:
-    await ejecutar_consulta_async(
-        "DELETE FROM pasos WHERE idReceta = ?",
-        (id_receta,)
-    )
+        # Eliminar utilizados anteriores
+        await ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,))
 
-    # 4. Borrar fotos adicionales
-    await ejecutar_consulta_async(
-        "DELETE FROM fotos WHERE idReceta = ?",
-        (id_receta,)
-    )
+        # Insertar ingredientes (buscar o crear)
+        for ing in data.ingredientes:
+            query_ing = "SELECT idIngrediente FROM ingredientes WHERE nombre = ?"
+            res_ing = await ejecutar_consulta_async(query_ing, (ing.nombre,), fetch=True)
+            if res_ing:
+                id_ingrediente = res_ing[0]["idIngrediente"]
+            else:
+                insert_ing = """
+                    INSERT INTO ingredientes (nombre)
+                    OUTPUT INSERTED.idIngrediente
+                    VALUES (?)
+                """
+                nuevo_ing = await ejecutar_consulta_async(insert_ing, (ing.nombre,), fetch=True)
+                id_ingrediente = nuevo_ing[0]["idIngrediente"]
 
-    # 5. Insertar nuevos ingredientes
-    for ing in data.ingredientes:
-        await ejecutar_consulta_async(
-            """
-            INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (id_receta, ing.idIngrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
-        )
-
-    # 6. Insertar nuevos pasos y multimedia
-    for paso in data.pasos:
-        res_paso = await ejecutar_consulta_async(
-            """
-            INSERT INTO pasos (idReceta, nroPaso, texto)
-            OUTPUT INSERTED.idPaso
-            VALUES (?, ?, ?)
-            """,
-            (id_receta, paso.nroPaso, paso.texto),
-            fetch=True
-        )
-        if not res_paso:
-            raise Exception("No se pudo insertar un paso")
-        id_paso = res_paso[0]["idPaso"]
-
-        for media in paso.multimedia:
             await ejecutar_consulta_async(
                 """
-                INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (id_paso, media.tipo_contenido, media.extension, media.urlContenido)
+                (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
             )
 
-    # 7. Insertar fotos adicionales
-    for foto in data.fotosAdicionales or []:
+        # Eliminar pasos y multimedia previos
+        await ejecutar_consulta_async("DELETE FROM multimedia WHERE idPaso IN (SELECT idPaso FROM pasos WHERE idReceta = ?)", (id_receta,))
+        await ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,))
+
+        # Insertar nuevos pasos (sin multimedia)
+        for paso in data.pasos:
+            await ejecutar_consulta_async(
+                """
+                INSERT INTO pasos (idReceta, nroPaso, texto)
+                VALUES (?, ?, ?)
+                """,
+                (id_receta, paso.nroPaso, paso.texto)
+            )
+
+        # Insertar nuevo estado "pendiente"
         await ejecutar_consulta_async(
             """
-            INSERT INTO fotos (idReceta, urlFoto, extension)
-            VALUES (?, ?, ?)
+            INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
+            VALUES (?, GETDATE(), 'pendiente')
             """,
-            (id_receta, foto.urlFoto, foto.extension)
+            (id_receta,)
         )
 
-    # 8. Actualizar estado a pendiente (o el estado que uses)
-    await ejecutar_consulta_async(
-        """
-        UPDATE estadoReceta SET estado = 'pendiente', fecha_creacion = GETDATE()
-        WHERE idReceta = ?
-        """,
-        (id_receta,)
-    )
+        print(f"✅ Receta actualizada con ID: {id_receta}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error en actualizar_receta_completa: {e}")
+        return False
+
 
 # Obtener calificaciones de una receta
 async def obtener_calificaciones_receta(id_receta: str, id_user: Optional[str] = None) -> List[Dict]:
@@ -569,8 +587,9 @@ async def guardar_archivo(upload_file: UploadFile) -> str:
     with open(ruta_completa, "wb") as buffer:
         shutil.copyfileobj(upload_file.file, buffer)
 
-    url_relativa = f"/img/{nombre_archivo}"
+    url_relativa = f"img/{nombre_archivo}"
     return url_relativa
+
 
 def extraer_indice(filename: str) -> int:
     # Buscar el patrón paso_X_ donde X es el número
@@ -580,3 +599,37 @@ def extraer_indice(filename: str) -> int:
     else:
         # Por si no se encuentra, podés devolver -1 o lanzar error
         return -1
+
+async def insertar_foto_principal(id_receta: int, url: str):
+    query = """
+        UPDATE recetas
+        SET fotoPrincipal = ?
+        WHERE idReceta = ?
+    """
+    await ejecutar_consulta_async(query, (url, id_receta))
+
+async def insertar_foto_adicional(id_receta: int, url: str, extension: str):
+    query = """
+        INSERT INTO fotos (idReceta, urlFoto, extension)
+        VALUES (?, ?, ?)
+    """
+    await ejecutar_consulta_async(query, (id_receta, url, extension))
+    
+async def insertar_multimedia_paso(id_receta: int, nro_paso: int, url: str, tipo_contenido: str, extension: str):
+    # Primero buscar idPaso
+    query_buscar = """
+        SELECT idPaso FROM pasos
+        WHERE idReceta = ? AND nroPaso = ?
+    """
+    res = await ejecutar_consulta_async(query_buscar, (id_receta, nro_paso), fetch=True)
+    if not res:
+        raise Exception("Paso no encontrado")
+    id_paso = res[0]["idPaso"]
+
+    # Insertar multimedia
+    query_insert = """
+        INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
+        VALUES (?, ?, ?, ?)
+    """
+    await ejecutar_consulta_async(query_insert, (id_paso, tipo_contenido, extension, url))
+

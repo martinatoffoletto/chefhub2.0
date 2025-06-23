@@ -48,7 +48,10 @@ async def ejecutar_consulta_async(
                     columns = [column[0] for column in cursor.description]
                     rows = await cursor.fetchall()
                     return [dict(zip(columns, row)) for row in rows]
+
+                await conn.commit()  
                 return None
     except Exception as e:
-        print(f"Error ejecutando consulta async: {e}")
+        print(f"❌ Error ejecutando consulta:\n{query}\nCon parámetros: {params}\nError: {e}")
         return None
+
