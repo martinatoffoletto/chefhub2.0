@@ -64,13 +64,10 @@ async def obtener_mis_notificaciones(current_user=Depends(obtener_usuario_actual
 
 #solicitar upgrade a alumno
 @router.post("/me/upgrade_alumno")
-async def upgrade_alumno(datos_alumno: Alumno,current_user=Depends(obtener_usuario_actual)):
-    try:
-        await user_services.upgradear_a_alumno(datos_alumno)
-    except user_services.DatosInvalidosError:
-        raise HTTPException(status_code=400, detail="Datos incompletos o inválidos")
-    except user_services.YaEsAlumnoError:
-        raise HTTPException(status_code=403, detail="Ya es alumno")
+async def upgrade_alumno(datos_alumno: Alumno, current_user=Depends(obtener_usuario_actual)):
+    usuario = await user_services.upgradear_a_alumno(datos_alumno)
+    if not usuario:
+        raise HTTPException(status_code=400, detail="No se pudo realizar el upgrade a alumno")
     return await obtener_usuario_actual()
 
 """
