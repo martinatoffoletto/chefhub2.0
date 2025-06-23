@@ -206,18 +206,16 @@ async def obtener_notificaciones_por_usuario(id_usuario: int):
     return await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
 
 # Convertir usuario a alumno
-async def upgradear_a_alumno(alumno: Alumno) -> bool:
+async def upgradear_a_alumno(alumno, current_user) -> bool:
     query = """
-        INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO alumnos (idAlumno, numeroTarjeta, tramite, cuentaCorriente)
+        VALUES (?, ?, ?, ?) 
     """
     await ejecutar_consulta_async(query, (
-        alumno.idAlumno,
-        alumno.numeroTarjeta,
-        alumno.dniFrente,
-        alumno.dniFondo,
-        alumno.tramite,
-        alumno.cuentaCorriente
+        current_user,
+        alumno["numeroTarjeta"],
+        alumno["tramite"],
+        alumno["cuentaCorriente"]
     ))
     return True
 
@@ -251,3 +249,8 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
         WHERE a.idAlumno = ?
     """
     return await ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
+
+async def guardar_dni(user_id: int, path: str, campo: str):
+    query = f"UPDATE usuarios SET {campo} = ? WHERE idUsuario = ?"
+    await ejecutar_consulta_async(query, (path, user_id))
+

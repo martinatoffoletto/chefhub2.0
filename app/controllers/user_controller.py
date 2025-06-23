@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Body, Path, Query
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from app.services import user_services
 from app.services.auth_service import obtener_usuario_actual
 from app.models.usuario import Alumno
+from app.services import receta_service  
 router = APIRouter(prefix="/user", tags=["User"])
 
 
@@ -64,11 +65,25 @@ async def obtener_mis_notificaciones(current_user=Depends(obtener_usuario_actual
 
 #solicitar upgrade a alumno
 @router.post("/me/upgrade_alumno")
-async def upgrade_alumno(datos_alumno: Alumno, current_user=Depends(obtener_usuario_actual)):
-    usuario = await user_services.upgradear_a_alumno(datos_alumno)
+async def upgrade_alumno(datos_alumno: dict, current_user=Depends(obtener_usuario_actual)):
+    usuario = await user_services.upgradear_a_alumno(datos_alumno, current_user["idUsuario"])
     if not usuario:
         raise HTTPException(status_code=400, detail="No se pudo realizar el upgrade a alumno")
     return await obtener_usuario_actual()
+
+
+#imagenes dni
+@router.post("/dni/upload")
+async def subir_dni(
+    campo: str,
+    archivo: UploadFile = File(...),
+    user=Depends(obtener_usuario_actual)
+):
+    path = await receta_service.guardar_archivo(archivo)
+    await user_services.guardar_dni(user.id, path, campo)
+    return {"url": path}
+
+
 
 """
 #registrar asistencia
