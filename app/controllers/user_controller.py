@@ -11,7 +11,8 @@ router = APIRouter(prefix="/user", tags=["User"])
 ## Ver info usuario
 @router.get("/me")
 async def get_current_user(current_user=Depends(obtener_usuario_actual)):
-    return await current_user
+    print("Usuario actual:", current_user)
+    return  current_user
 
 #ver cursos de usuario
 @router.get("/me/cursos")
@@ -69,7 +70,8 @@ async def upgrade_alumno(datos_alumno: dict, current_user=Depends(obtener_usuari
     usuario = await user_services.upgradear_a_alumno(datos_alumno, current_user["idUsuario"])
     if not usuario:
         raise HTTPException(status_code=400, detail="No se pudo realizar el upgrade a alumno")
-    return await obtener_usuario_actual()
+    return current_user
+
 
 
 #imagenes dni

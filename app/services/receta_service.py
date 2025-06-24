@@ -29,10 +29,12 @@ async def listar_recetas(
             r.fotoPrincipal,
             u.nickname,
             u.avatar,
-            ISNULL(AVG(c.calificacion), 0) AS promedioCalificacion
+            ISNULL(AVG(c.calificacion), 0) AS promedioCalificacion,
+            er.estado
         FROM recetas r
         JOIN usuarios u ON r.idUsuario = u.idUsuario
         LEFT JOIN calificaciones c ON r.idReceta = c.idReceta
+        JOIN estadoReceta er ON er.idReceta = r.idReceta
     """
 
     filtros = []
@@ -66,31 +68,23 @@ async def listar_recetas(
     if id_usuario_logueado:
         usuario_logueado_nickname = await obtener_nickname_por_id(id_usuario_logueado)
         if nickname and nickname != usuario_logueado_nickname:
-            filtros.append("""
-                r.idReceta IN (
-                    SELECT idReceta FROM estadoReceta WHERE estado = 'aprobado'
-                )
-            """)
+            filtros.append("er.estado = 'aprobado'")
         else:
             filtros.append("""
                 (
-                    r.idReceta IN (SELECT idReceta FROM estadoReceta WHERE estado = 'aprobado')
+                    er.estado = 'aprobado'
                     OR r.idUsuario = ?
                 )
             """)
             params.append(id_usuario_logueado)
     else:
-        filtros.append("""
-            r.idReceta IN (
-                SELECT idReceta FROM estadoReceta WHERE estado = 'aprobado'
-            )
-        """)
+        filtros.append("er.estado = 'aprobado'")
 
     if filtros:
         query += " WHERE " + " AND ".join(filtros)
 
     query += """
-        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname, u.avatar
+        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname, u.avatar, er.estado
     """
 
     if ordenar_por == "reciente":
@@ -104,8 +98,8 @@ async def listar_recetas(
 
     if limite:
         recetas = recetas[:limite]
-
     return recetas if recetas else []
+
 
 #listar todos los ingredientes
 async def listar_ingredientes() -> List[Dict]:
@@ -145,7 +139,6 @@ async def listar_conversiones() -> List[Dict]:
         FROM conversiones
     """
     conversiones = await ejecutar_consulta_async(query, fetch=True)
-    print(conversiones)
     return conversiones if conversiones else []
 
 #obtener receta por id 
@@ -499,41 +492,21 @@ async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario:
 
 
 # Obtener calificaciones de una receta
-async def obtener_calificaciones_receta(id_receta: str, id_user: Optional[str] = None) -> List[Dict]:
-    if id_user:
-        query = """
-            SELECT 
-                c.idCalificacion,
-                c.calificacion,
-                c.comentarios,
-                u.nickname,
-                ec.estado,
-                ec.fechaEstado
-            FROM calificaciones c
-            JOIN usuarios u ON c.idUsuario = u.idUsuario
-            LEFT JOIN estadoComentario ec ON c.idCalificacion = ec.idCalificacion
-            WHERE c.idReceta = ?
-            AND (
-                ec.estado = 'aprobado' OR c.idUsuario = ?
-            )
-        """
-        calificaciones = await ejecutar_consulta_async(query, [id_receta, id_user], fetch=True)
-    else:
-        query = """
-            SELECT 
-                c.idCalificacion,
-                c.calificacion,
-                c.comentarios,
-                u.nickname,
-                ec.estado
-            FROM calificaciones c
-            JOIN usuarios u ON c.idUsuario = u.idUsuario
-            LEFT JOIN estadoComentario ec ON c.idCalificacion = ec.idCalificacion
-            WHERE c.idReceta = ?
-            AND ec.estado = 'aprobado'
-        """
-        calificaciones = await ejecutar_consulta_async(query, [id_receta], fetch=True)
-    print(f"Calificaciones encontradas: {calificaciones}")
+async def obtener_calificaciones_receta(id_receta: str) -> List[Dict]:
+    query = """
+        SELECT 
+            c.idCalificacion,
+            c.calificacion,
+            c.comentarios,
+            u.nickname,
+            ec.estado,
+            ec.fechaEstado
+        FROM calificaciones c
+        JOIN usuarios u ON c.idUsuario = u.idUsuario
+        LEFT JOIN estadoComentario ec ON c.idCalificacion = ec.idCalificacion
+        WHERE c.idReceta = ?
+    """
+    calificaciones = await ejecutar_consulta_async(query, [id_receta], fetch=True)
     return calificaciones if calificaciones else []
 
 
@@ -563,11 +536,10 @@ async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Califi
 
     # Insertar el estado inicial como 'pendiente'
     query_estado = """
-        INSERT INTO estadoComentario (idCalificacion, estado, fechaEstado)
-        VALUES (?, 'pendiente', GETDATE())
+    INSERT INTO estadoComentario (idCalificacion, estado, fechaEstado, observaciones)
+    VALUES (?, 'pendiente', GETDATE(), '')
     """
     await ejecutar_consulta_async(query_estado, (id_calificacion,))
-
     return {"success": True, "idCalificacion": id_calificacion}
 
 ########################## guardar archivos multimedia ##########################

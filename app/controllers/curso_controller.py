@@ -10,13 +10,15 @@ router = APIRouter()
 
 
 #Ver todos los cursos 
-@router.get("/curso")
-async def get_all_cursos():
+@router.get("/curso", response_model=List[Dict])
+async def get_all_cursos(
+    id_sede: Optional[int] = None,
+    en_curso: Optional[bool] = None
+):
     try:
-        return await curso_services.listar_cursos()
+        return await curso_services.listar_cursos(id_sede=id_sede, en_curso=en_curso)
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno")
-
 
 #Ver un detalle curso por id 
 @router.get("/curso/{id}")
@@ -38,7 +40,6 @@ async def get_curso_nombre(nombre: str):
     return curso
 
 
-
 #Ver todas las sedes 
 @router.get("/sedes")
 async def get_sedes():
@@ -47,13 +48,6 @@ async def get_sedes():
     except Exception:
         raise HTTPException(status_code=404, detail="Sedes no encontrada")
 
-#Ver cursos de sede 
-@router.get("/sedes/{id}")
-async def get_cursos_por_sed(id: str):
-    try:
-        return await curso_services.obtener_cursos_por_sede(id)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Sedes no encontrada")
 
 #Ver todas las sedes de un curso
 @router.get("/curso/{id}/sedes")
@@ -92,21 +86,30 @@ async def get_ofertas_por_curso(id: str):
 
 #Inscribirse a un curso
 @router.post("/curso/{id_cronograma}/alta")
-async def inscribirse_curso(id_cronograma: str, user=Depends(obtener_usuario_actual)):
+async def inscribirse_curso(
+    id_cronograma: str,
+    precioAbonado: float ,
+    user=Depends(obtener_usuario_actual)
+):
     if user["tipo_usuario"].lower() != "alumno":
         raise HTTPException(status_code=403, detail="Solo los alumnos pueden inscribirse a cursos")
-    resultado = await curso_services.inscribir_alumno_a_curso(user["idUsuario"], id_cronograma)
-    return {"mensaje": "Inscripción exitosa", "resultado": resultado}
+
+    resultado = await curso_services.inscribir_alumno_a_curso(
+        id_alumno=user["idUsuario"],
+        id_cronograma=id_cronograma,
+        precio_abonado=precioAbonado
+    )
+    return  resultado
 
 
 
 #Darse de baja de un curso 
 @router.post("/curso/{id_cronograma}/baja")
-async def baja_curso(id_cronograma: str, user=Depends(obtener_usuario_actual)):
+async def baja_curso(id_cronograma: str,precioAbonado: float, user=Depends(obtener_usuario_actual)):
     if user["tipo_usuario"] != "Alumno":
         raise HTTPException(status_code=401, detail="No autorizado")
 
-    await curso_services.dar_baja_alumno_de_curso(user["idUsuario"], id_cronograma)
+    await curso_services.dar_baja_alumno_de_curso(user["idUsuario"], id_cronograma, precioAbonado)
     return {"mensaje": "Baja exitosa"}
 
 

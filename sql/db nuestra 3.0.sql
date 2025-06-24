@@ -1,3 +1,8 @@
+use master;
+ALTER DATABASE chefhub SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+DROP DATABASE chefhub;
+
+
 create database chefhub;
 
 use chefhub;

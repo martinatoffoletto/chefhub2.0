@@ -79,7 +79,6 @@ async def get_receta_por_id(id: str = Path(...)):
     receta = await receta_service.obtener_receta_detallada(id)
     if not receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
-    print(receta)
     return receta
 
 
@@ -106,7 +105,7 @@ async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
 
 
 
-
+######################################## CREACION, MODIF, Y REEMPLAZO RECETAS ########################################
 #crear receta
 @router.post("/", status_code=200)
 async def post_receta(receta: RecetaIn,user=Depends(obtener_usuario_actual)):
@@ -124,6 +123,49 @@ async def post_receta(receta: RecetaIn,user=Depends(obtener_usuario_actual)):
             status_code=500, detail="Ocurrió un error al crear la receta"
         )
     
+
+# Reemplazar receta
+@router.put("/reemplazar/{idreceta_vieja}", status_code=200)
+async def reemplazar_receta(idreceta_vieja: int, receta: RecetaIn, user=Depends(obtener_usuario_actual)):
+    try:
+        # 1. Crear la nueva receta
+        nuevo_id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
+        print(f"✅ Receta nueva creada con ID: {nuevo_id_receta}")
+
+        # 2. Eliminar la receta vieja y sus relaciones
+        eliminado = await receta_service.borrar_receta_completa(idreceta_vieja)
+        if not eliminado:
+            raise Exception(f"No se pudo eliminar la receta anterior con ID {idreceta_vieja}")
+        print(f"🗑️ Receta vieja con ID {idreceta_vieja} eliminada correctamente")
+
+        # 3. Retornar mensaje y nuevo ID
+        return {
+            "mensaje": "Receta reemplazada correctamente",
+            "idReceta": nuevo_id_receta
+        }
+
+    except Exception as e:
+        print(f"❌ Error al reemplazar receta: {e}")
+        raise HTTPException(status_code=500, detail="Ocurrió un error al reemplazar la receta")
+
+# Actualizar receta
+@router.put("/{id_receta}", status_code=200)
+async def actualizar_receta(id_receta: int, receta: RecetaIn, user=Depends(obtener_usuario_actual)):
+    try:
+        actualizado = await receta_service.actualizar_receta_completa(id_receta, receta, user["idUsuario"])
+        if not actualizado:
+            raise Exception("La receta no pudo ser actualizada")
+
+        return {
+            "mensaje": "Receta actualizada correctamente",
+            "idReceta": id_receta
+        }
+
+    except Exception as e:
+        print(f"❌ Error al actualizar receta: {e}")
+        raise HTTPException(status_code=500, detail="Ocurrió un error al actualizar la receta")
+
+#### Subir fotos y multimedia a recetas####
 @router.post("/{id_receta}/foto-principal")
 async def subir_foto_principal(id_receta: int, archivo: UploadFile = File(...)):
     path = await receta_service.guardar_archivo(archivo)
@@ -154,57 +196,13 @@ async def subir_multimedia_paso(id_receta: int, nro_paso: int, archivo: UploadFi
         "extension": extension
     }
 
-
-
-@router.put("/reemplazar/{idreceta_vieja}", status_code=200)
-async def reemplazar_receta(idreceta_vieja: int, receta: RecetaIn, user=Depends(obtener_usuario_actual)):
-    try:
-        # 1. Crear la nueva receta
-        nuevo_id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
-        print(f"✅ Receta nueva creada con ID: {nuevo_id_receta}")
-
-        # 2. Eliminar la receta vieja y sus relaciones
-        eliminado = await receta_service.borrar_receta_completa(idreceta_vieja)
-        if not eliminado:
-            raise Exception(f"No se pudo eliminar la receta anterior con ID {idreceta_vieja}")
-        print(f"🗑️ Receta vieja con ID {idreceta_vieja} eliminada correctamente")
-
-        # 3. Retornar mensaje y nuevo ID
-        return {
-            "mensaje": "Receta reemplazada correctamente",
-            "idReceta": nuevo_id_receta
-        }
-
-    except Exception as e:
-        print(f"❌ Error al reemplazar receta: {e}")
-        raise HTTPException(status_code=500, detail="Ocurrió un error al reemplazar la receta")
-
-
-
-@router.put("/{id_receta}", status_code=200)
-async def actualizar_receta(id_receta: int, receta: RecetaIn, user=Depends(obtener_usuario_actual)):
-    try:
-        actualizado = await receta_service.actualizar_receta_completa(id_receta, receta, user["idUsuario"])
-        if not actualizado:
-            raise Exception("La receta no pudo ser actualizada")
-
-        return {
-            "mensaje": "Receta actualizada correctamente",
-            "idReceta": id_receta
-        }
-
-    except Exception as e:
-        print(f"❌ Error al actualizar receta: {e}")
-        raise HTTPException(status_code=500, detail="Ocurrió un error al actualizar la receta")
-
-
-
+#################################################
 
 #obtener calificaciones de una receta
 @router.get("/{id}/calificaciones", status_code=200)
-async def get_calificaciones_receta(id: str = Path(...), user=Depends(obtener_usuario_actual_opcional)):
+async def get_calificaciones_receta(id: str = Path(...)):
     try:
-        calificaciones = await receta_service.obtener_calificaciones_receta(id,user["idUsuario"] if user else None)
+        calificaciones = await receta_service.obtener_calificaciones_receta(id)
         return calificaciones
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener calificaciones: {str(e)}")

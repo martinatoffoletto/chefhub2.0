@@ -209,46 +209,49 @@ async def obtener_notificaciones_por_usuario(id_usuario: int):
 async def upgradear_a_alumno(alumno, current_user) -> bool:
     query = """
         INSERT INTO alumnos (idAlumno, numeroTarjeta, tramite, cuentaCorriente)
-        VALUES (?, ?, ?, ?) 
+        VALUES (?, ?, ?, 0)
     """
     await ejecutar_consulta_async(query, (
         current_user,
         alumno["numeroTarjeta"],
-        alumno["tramite"],
-        alumno["cuentaCorriente"]
+        alumno["tramite"]
     ))
     return True
 
 # Obtener cursos por ID de usuario
 async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
     query = """
-        SELECT 
+            SELECT 
             c.idCurso,
             c.descripcion AS nombreCurso,
-            c.contenidos,
-            c.requerimientos,
             c.duracion,
-            c.precio,
-            c.modalidad,
+            c.precio AS precioBase,
             cr.idCronograma,
             cr.fechaInicio,
             cr.fechaFin,
-            cr.vacantesDisponibles,
             s.nombreSede,
+            s.bonificacionCursos,
+            s.tipoPromocion,
+            s.promocionCursos,
+            -- Precio final aplicando bonificaciones y promociones multiplicativamente
+            c.precio 
+            * (1 - ISNULL(s.bonificacionCursos, 0) / 100)
+            * (1 - ISNULL(s.promocionCursos, 0) / 100) AS precioFinal,
             (
                 SELECT COUNT(*) 
                 FROM asistenciaCursos a2 
                 WHERE a2.idCronograma = cr.idCronograma 
                 AND a2.idAlumno = a.idAlumno
             ) AS totalAsistencias
-
         FROM asistenciaCursos a
         JOIN cronogramaCursos cr ON a.idCronograma = cr.idCronograma
         JOIN cursos c ON cr.idCurso = c.idCurso
         JOIN sedes s ON cr.idSede = s.idSede
         WHERE a.idAlumno = ?
+
     """
     return await ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
+
 
 async def guardar_dni(user_id: int, path: str, campo: str):
     query = f"UPDATE usuarios SET {campo} = ? WHERE idUsuario = ?"
