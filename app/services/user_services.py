@@ -106,14 +106,6 @@ async def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
 
     return user_data
 
-# Cambiar contraseña
-async def cambiar_contrasena(pass_obj: Password) -> bool:
-    query = """
-        UPDATE passwords SET password = ? WHERE idpassword = ?
-    """
-    await ejecutar_consulta_async(query, (pass_obj.password, pass_obj.idpassword))
-    return True
-
 #buscar usuario por alias
 async def buscar_usuario_por_alias(username: str):
     query_user="SELECT * FROM usuarios WHERE nickname = ?"

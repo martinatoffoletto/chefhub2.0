@@ -11,7 +11,7 @@ from email.message import EmailMessage
 SECRET_KEY = "secret"
 ALGORITHM = "HS256"
 
-# Aquí va el auto_error=False para que no lance excepción si no viene token
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 async def obtener_usuario_actual_opcional(token: Optional[str] = Depends(oauth2_scheme)):

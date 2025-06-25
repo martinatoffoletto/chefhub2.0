@@ -207,21 +207,4 @@ CREATE TABLE notificaciones (
     CONSTRAINT fk_idUsuario_usuario FOREIGN KEY (idUsuario) REFERENCES usuarios(idUsuario)
 );
 
---create table fotosCursos(
---	idfoto int not null identity constraint pk_fotos primary key,
---	idCurso int not null,
---	urlFoto varchar(300),
---	extension varchar(5),
---	constraint fk_fotos_recetas foreign key (idCurso) references cursos
---)
-
-
---create table fotosSedes(
---	idfoto int not null identity constraint pk_fotos primary key,
---	idSede int not null,
---	urlFoto varchar(300),
---	extension varchar(5),
---	constraint fk_fotos_recetas foreign key (idSede) references sedes
---)
-
 

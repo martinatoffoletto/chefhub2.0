@@ -87,17 +87,8 @@ async def subir_dni(
 
 
 
-"""
-#registrar asistencia
+
+#registrar asistencia usuario
 @router.post("/me/asistencia/{inscripcion_Id}")
 async def register_asistence(inscripcion_Id):
-    try:
-        await user_services.registrar_asistencia()
-    except user_services.CodigoInvalidoError:
-        raise HTTPException(status_code=400, detail="Código inválido")
-    except user_services.CursoOUsuarioNoExisteError:
-        raise HTTPException(status_code=404, detail="Curso o usuario inexistente")
-    except user_services.AsistenciaYaRegistradaError:
-        raise HTTPException(status_code=409, detail="Ya registrada la asistencia")
-    return {"msg": "Asistencia registrada"}
-"""
+   pass

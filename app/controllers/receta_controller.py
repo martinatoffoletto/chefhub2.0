@@ -82,9 +82,11 @@ async def get_receta_por_id(id: str = Path(...)):
     return receta
 
 
+
+
+######################################## CREACION, MODIF, Y REEMPLAZO RECETAS ########################################
+
 #Verificar receta 
-
-
 @router.post("/verificar/{nombre}")
 async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
     try:
@@ -104,8 +106,6 @@ async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
         raise HTTPException(status_code=500, detail=f"Error al verificar receta: {str(e)}")
 
 
-
-######################################## CREACION, MODIF, Y REEMPLAZO RECETAS ########################################
 #crear receta
 @router.post("/", status_code=200)
 async def post_receta(receta: RecetaIn,user=Depends(obtener_usuario_actual)):
