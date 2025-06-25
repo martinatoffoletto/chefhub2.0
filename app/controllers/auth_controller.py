@@ -8,6 +8,8 @@ import random
 import json
 from app.models.usuario import Usuario
 from app.models.usuario import Alumno
+from app.models.usuario import Password
+from app.services.user_services import cambiar_contrasena
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0)
 router = APIRouter()
@@ -59,7 +61,7 @@ async def register_first_step(username: str=Body(...), email: str=Body(...)):
             raise HTTPException(status_code=403, detail="Alias no disponible")
 
         codigo = f"{random.randint(1000, 9999)}"
-        email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo)
+        email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo, subject="Registro")
         if not email_sent:
             raise HTTPException(status_code=500, detail="Error enviando el código")
 
@@ -259,9 +261,72 @@ async def personal_data(email:str=Body(...), frontDNI:str=Body(...), backDNI: st
         print(f"Error finalizando registro de alumno: {e}")
         raise HTTPException(status_code=500, detail="Error en el servidor")
     
-@router.put("/forgot_password")
-async def forgot_password():
-    return {"message": "Forgot password endpoint"}
+@router.post("/forgot_password")
+async def forgot_password(email: str = Body(...)):
+    try:
+
+        exists= await auth_service.buscar_usuario_por_mail(mail=email)
+        if not exists:
+            raise HTTPException(status_code=404, detail="Mail no encontrado")
+
+        codigo = f"{random.randint(1000, 9999)}"
+        email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo, subject="Olvidé mi contraseña")
+        if not email_sent:
+            raise HTTPException(status_code=500, detail="Error enviando el código")
+
+        datos_temporales = {
+            "email": email,
+            "codigo": codigo
+        }
+
+        redis_client.set(f"forgot_password_temp:{email}", json.dumps(datos_temporales), ex=1800)
+
+        return {"status": "ok", "message": "Código enviado al mail"}
+
+    except Exception as e:
+        return {"message": "Forgot password endpoint"}
+
+@router.post("/forgot-password-code-verification")
+async def forgot_password_code_verification(email:str=Body(...), code:str=Body(...)):
+    try:
+        data_raw = redis_client.get(f"forgot_password_temp:{email}")
+        if not data_raw:
+            raise HTTPException(status_code=403, detail="Código no encontrado o expirado")
+
+        data = json.loads(data_raw)
+        if data.get("codigo") != code:
+            raise HTTPException(status_code=403, detail="Código inválido")
+
+        return {"status": "ok", "message": "Código validado correctamente"}
+    except Exception as e:
+        print(f"Error en validación de código: {e}")
+        raise HTTPException(status_code=500, detail="Error en la validación de código")
+
+@router.post("/reset-password")
+async def reset_password(email:str=Body(...),password:str=Body(...)):
+    try:
+        user=await auth_service.buscar_usuario_por_mail(mail=email)
+        if user is None:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        success = await auth_service.create_password(password, email)
+        if not success:
+            raise HTTPException(status_code=500, detail="Error creando la contraseña")
+        
+        id_usuario = int(user['idUsuario'])
+
+        new_password=Password(
+            idpassword=id_usuario,
+            password=success
+        )
+
+        await cambiar_contrasena(pass_obj=new_password)
+        
+        return("Contraseña cambiada exitosamente")
+        
+    except Exception as e:
+        print(f"Error cambiando contraseña: {e}")
+        raise HTTPException(status_code=500, detail="Error en el servidor")
 
 @router.get("/alias_sugerido")
 async def alias_sugerido():

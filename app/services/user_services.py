@@ -106,6 +106,30 @@ async def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
 
     return user_data
 
+# Cambiar contraseña
+async def cambiar_contrasena(pass_obj: Password) -> bool:
+    first_query="""SELECT password FROM passwords WHERE idpassword= ?"""
+    old_psswd=await ejecutar_consulta_async(first_query, (pass_obj.idpassword,), fetch=True)
+    if old_psswd:
+        print("Contraseña vieja:", old_psswd[0]["password"])
+    else:
+        print("No se encontró ninguna contraseña con ese ID")
+
+    query = """
+        UPDATE passwords SET password = ? WHERE idpassword = ?
+    """
+    await ejecutar_consulta_async(query, (pass_obj.password, pass_obj.idpassword))
+
+    new_query = "SELECT password FROM passwords WHERE idpassword = ?"
+    result = await ejecutar_consulta_async(new_query, (pass_obj.idpassword,), fetch=True)
+
+    if result:
+        print("Contraseña actualizada:", result[0]["password"])
+    else:
+        print("No se encontró ninguna contraseña con ese ID")
+
+    return True
+
 #buscar usuario por alias
 async def buscar_usuario_por_alias(username: str):
     query_user="SELECT * FROM usuarios WHERE nickname = ?"
