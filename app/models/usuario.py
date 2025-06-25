@@ -26,5 +26,8 @@ class Password(BaseModel):
     idpassword: int  # FK hacia usuarios.idUsuario
     password: str
         
-
+class DatosUpgradeAlumno(BaseModel):
+    numeroTarjeta: str
+    tramite: str
+    email: Optional[str] = None
 

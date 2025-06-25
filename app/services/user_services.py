@@ -270,6 +270,6 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
 
 
 async def guardar_dni(user_id: int, path: str, campo: str):
-    query = f"UPDATE usuarios SET {campo} = ? WHERE idUsuario = ?"
+    query = f"UPDATE alumnos SET {campo} = ? WHERE idAlumno = ?"
     await ejecutar_consulta_async(query, (path, user_id))
 

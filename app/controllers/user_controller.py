@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Body
 from app.services import user_services
 from app.services.auth_service import obtener_usuario_actual
+from app.services.auth_service import obtener_usuario_actual_opcional
 from app.models.usuario import Alumno
 from app.services import receta_service  
+from app.models.usuario import DatosUpgradeAlumno
+from typing import Optional
 router = APIRouter(prefix="/user", tags=["User"])
 
 
@@ -66,7 +69,21 @@ async def obtener_mis_notificaciones(current_user=Depends(obtener_usuario_actual
 
 #solicitar upgrade a alumno
 @router.post("/me/upgrade_alumno")
-async def upgrade_alumno(datos_alumno: dict, current_user=Depends(obtener_usuario_actual)):
+async def upgrade_alumno(datos: DatosUpgradeAlumno, current_user=Depends(obtener_usuario_actual_opcional),  ):
+
+    if not current_user:
+        if not datos.email:
+            raise HTTPException(status_code=401, detail="Token o email requerido")
+        current_user = await user_services.buscar_usuario_por_mail(datos.email)
+        if not current_user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    
+    datos_alumno = {
+        "numeroTarjeta": datos.numeroTarjeta,
+        "tramite": datos.tramite
+    }
+
     usuario = await user_services.upgradear_a_alumno(datos_alumno, current_user["idUsuario"])
     if not usuario:
         raise HTTPException(status_code=400, detail="No se pudo realizar el upgrade a alumno")
@@ -79,10 +96,18 @@ async def upgrade_alumno(datos_alumno: dict, current_user=Depends(obtener_usuari
 async def subir_dni(
     campo: str,
     archivo: UploadFile = File(...),
-    user=Depends(obtener_usuario_actual)
+    user=Depends(obtener_usuario_actual_opcional),
+    email: Optional[str] =Body(None)
 ):
+    if not user:
+        if not email:
+            raise HTTPException(status_code=401, detail="Token o email requerido")
+        user = await user_services.buscar_usuario_por_mail(email)
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    print(user)
     path = await receta_service.guardar_archivo(archivo)
-    await user_services.guardar_dni(user.id, path, campo)
+    await user_services.guardar_dni(user["idUsuario"], path, campo)
     return {"url": path}
 
 

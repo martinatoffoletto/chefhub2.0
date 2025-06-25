@@ -126,7 +126,7 @@ async def create_password(password: str = Body(...), email:str=Body(...)):
         raise HTTPException(status_code=500, detail="Error en el servidor")
     
 @router.post('/register/avatar')
-async def chosen_avatar(email:str=Body(...), avatar:int=Body(...)):
+async def chosen_avatar(email:str=Body(...), avatar:str=Body(...)):
     try:
         data_raw = redis_client.get(f"registro_temp:{email}")
         if not data_raw:
@@ -135,7 +135,7 @@ async def chosen_avatar(email:str=Body(...), avatar:int=Body(...)):
         data = json.loads(data_raw)
         data["avatar"]=avatar
 
-        redis_client.set(f"registro_Temp:{email}", json.dumps(data), ex=86400)
+        redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
 
         return {"status": "ok", "message": "Avatar asignado correctamente"}
 
@@ -273,7 +273,7 @@ async def forgot_password(email: str = Body(...)):
         email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo, subject="Olvidé mi contraseña")
         if not email_sent:
             raise HTTPException(status_code=500, detail="Error enviando el código")
-
+        print(codigo)
         datos_temporales = {
             "email": email,
             "codigo": codigo
