@@ -15,7 +15,7 @@ class Usuario(BaseModel):
     avatar: Optional[str] = None  # URL
 
 class Alumno(BaseModel):
-    idAlumno: int  # FK hacia usuarios.idUsuario
+    idAlumno: Optional[int]  # FK hacia usuarios.idUsuario
     numeroTarjeta: Optional[str] = None
     dniFrente: Optional[str] = None
     dniFondo: Optional[str] = None

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Body, Path, Query
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from app.services import user_services
 from app.services.auth_service import obtener_usuario_actual
 from app.models.usuario import Alumno
+from app.services import receta_service  
 router = APIRouter(prefix="/user", tags=["User"])
 
 
@@ -10,7 +11,8 @@ router = APIRouter(prefix="/user", tags=["User"])
 ## Ver info usuario
 @router.get("/me")
 async def get_current_user(current_user=Depends(obtener_usuario_actual)):
-    return await current_user
+    print("Usuario actual:", current_user)
+    return  current_user
 
 #ver cursos de usuario
 @router.get("/me/cursos")
@@ -61,20 +63,31 @@ async def obtener_mis_notificaciones(current_user=Depends(obtener_usuario_actual
     return {"notificaciones": notificaciones}
 
 
-"""
+
 #solicitar upgrade a alumno
 @router.post("/me/upgrade_alumno")
-async def upgrade_alumno(datos_alumno,current_user=Depends(obtener_usuario_actual)):
-    try:
-        datos_alumno['idAlumno'] = current_user['idAlumno']
-        await user_services.solicitar_upgrade_alumno(datos_alumno)
-    except user_services.DatosInvalidosError:
-        raise HTTPException(status_code=400, detail="Datos incompletos o inválidos")
-    except user_services.YaEsAlumnoError:
-        raise HTTPException(status_code=403, detail="Ya es alumno")
-    return await obtener_usuario_actual()
+async def upgrade_alumno(datos_alumno: dict, current_user=Depends(obtener_usuario_actual)):
+    usuario = await user_services.upgradear_a_alumno(datos_alumno, current_user["idUsuario"])
+    if not usuario:
+        raise HTTPException(status_code=400, detail="No se pudo realizar el upgrade a alumno")
+    return current_user
 
 
+
+#imagenes dni
+@router.post("/dni/upload")
+async def subir_dni(
+    campo: str,
+    archivo: UploadFile = File(...),
+    user=Depends(obtener_usuario_actual)
+):
+    path = await receta_service.guardar_archivo(archivo)
+    await user_services.guardar_dni(user.id, path, campo)
+    return {"url": path}
+
+
+
+"""
 #registrar asistencia
 @router.post("/me/asistencia/{inscripcion_Id}")
 async def register_asistence(inscripcion_Id):

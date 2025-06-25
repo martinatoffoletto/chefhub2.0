@@ -1,11 +1,10 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Body, Path, Query, Form, UploadFile, File
 from typing import Optional
-import json
 from app.services import receta_service  
 from app.models.receta import *
 from app.models.calificacion import *
 from app.services.auth_service import obtener_usuario_actual, obtener_usuario_actual_opcional
-from app.models.appError import AppError
+
 
 
 router = APIRouter(prefix="/recetas", tags=["Recetas"])
@@ -36,10 +35,6 @@ async def get_recetas(
         limite=limite
     )
     return recetas
-
-
-
-
 
 # Obtener todos los ingredientes (id y nombre)
 @router.get("/ingredientes", status_code=200)
@@ -84,156 +79,134 @@ async def get_receta_por_id(id: str = Path(...)):
     receta = await receta_service.obtener_receta_detallada(id)
     if not receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
-    print(receta)
     return receta
 
 
 #Verificar receta 
+
+
 @router.post("/verificar/{nombre}")
 async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
     try:
-        return await receta_service.verificar_receta(user["idUsuario"], nombre)
-    except AppError as e:
-        raise HTTPException(status_code=e.code, detail=e.message)
+        resultado = await receta_service.verificar_receta(user["idUsuario"], nombre)
+        if resultado["existe"]:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "mensaje": "Receta ya existe",
+                    "receta_id": resultado["receta_id"]
+                }
+            )
+        return resultado
+    except HTTPException as e:
+        raise e  
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al verificar receta: {str(e)}")
 
 
+
+######################################## CREACION, MODIF, Y REEMPLAZO RECETAS ########################################
 #crear receta
-@router.post("/")
-async def post_receta(
-    datos: str = Form(...),
-    fotoPrincipal: UploadFile | None = File(None),
-    fotosAdicionales: list[UploadFile] = File([]),
-    archivosPasos: list[UploadFile] = File([]),
-    user=Depends(obtener_usuario_actual),
-):
-    print("✅ Recibí la receta")
-    print("➡️ Datos:", datos)
-    print("📸 Foto principal:", fotoPrincipal.filename if fotoPrincipal else None)
-    print("📷 Fotos adicionales:", [f.filename for f in fotosAdicionales])
-    print("🎞️ Archivos pasos:", [f.filename for f in archivosPasos])
+@router.post("/", status_code=200)
+async def post_receta(receta: RecetaIn,user=Depends(obtener_usuario_actual)):
     try:
-        receta = json.loads(datos)
         print(receta)
-
-        if fotoPrincipal:
-            url_fp = await receta_service.guardar_archivo(fotoPrincipal)
-            receta["fotoPrincipal"] = url_fp
-
-        for foto in fotosAdicionales:
-            url_fa = await receta_service.guardar_archivo(foto)
-            receta.setdefault("fotosAdicionales", []).append({"urlFoto": url_fa})
-
-        for archivo in archivosPasos:
-            # Extraer índice del paso del nombre del archivo
-            paso_idx = receta_service.extraer_indice(archivo.filename)  
-            tipo = "video" if archivo.content_type.startswith("video") else "imagen"
-            url_media = await receta_service.guardar_archivo(archivo)
-            receta["pasos"][paso_idx]["multimedia"].append({
-                "tipo_contenido": tipo,
-                "urlContenido": url_media,
-                "extension": archivo.filename.split(".")[-1],
-            })
-
-        #id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
-        print(receta)
-        return {"mensaje": "Receta creada correctamente", "idReceta": receta}
-
+        id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
+        print("✅ Receta creada con ID:", id_receta)
+        return {
+            "mensaje": "Receta creada correctamente",
+            "idReceta": id_receta,  
+        }
     except Exception as e:
         print("Error:", e)
-        raise HTTPException(status_code=500, detail="Ocurrió un error al crear la receta")
+        raise HTTPException(
+            status_code=500, detail="Ocurrió un error al crear la receta"
+        )
+    
 
-
-@router.put("/reemplazar/{id_receta_antigua}")
-async def reemplazar_receta(
-    id_receta_antigua: int,
-    datos: str = Form(...),
-    fotoPrincipal: UploadFile | None = File(None),
-    fotosAdicionales: list[UploadFile] = File([]),
-    archivosPasos: list[UploadFile] = File([]),
-    user=Depends(obtener_usuario_actual),
-):
+# Reemplazar receta
+@router.put("/reemplazar/{idreceta_vieja}", status_code=200)
+async def reemplazar_receta(idreceta_vieja: int, receta: RecetaIn, user=Depends(obtener_usuario_actual)):
     try:
-        receta = json.loads(datos)
+        # 1. Crear la nueva receta
+        nuevo_id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
+        print(f"✅ Receta nueva creada con ID: {nuevo_id_receta}")
 
-        if fotoPrincipal:
-            url_fp = await receta_service.guardar_archivo(fotoPrincipal)
-            receta["fotoPrincipal"] = url_fp
+        # 2. Eliminar la receta vieja y sus relaciones
+        eliminado = await receta_service.borrar_receta_completa(idreceta_vieja)
+        if not eliminado:
+            raise Exception(f"No se pudo eliminar la receta anterior con ID {idreceta_vieja}")
+        print(f"🗑️ Receta vieja con ID {idreceta_vieja} eliminada correctamente")
 
-        for foto in fotosAdicionales:
-            url_fa = await receta_service.guardar_archivo(foto)
-            receta.setdefault("fotosAdicionales", []).append({"urlFoto": url_fa})
-
-        for archivo in archivosPasos:
-            paso_idx = receta_service.extraer_indice(archivo.filename)
-            tipo = "video" if archivo.content_type.startswith("video") else "imagen"
-            url_media = await receta_service.guardar_archivo(archivo)
-            receta["pasos"][paso_idx]["multimedia"].append({
-                "tipo_contenido": tipo,
-                "urlContenido": url_media,
-                "extension": archivo.filename.split(".")[-1],
-            })
-
-        #id_nueva = await receta_service.crear_receta_completa(receta, user["idUsuario"])
-        #await receta_service.borrar_receta_completa(id_receta_antigua, user["idUsuario"])
-        print(receta)
-        return {"mensaje": "Receta reemplazada correctamente", "idNuevaReceta": receta}
+        # 3. Retornar mensaje y nuevo ID
+        return {
+            "mensaje": "Receta reemplazada correctamente",
+            "idReceta": nuevo_id_receta
+        }
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"❌ Error al reemplazar receta: {e}")
+        raise HTTPException(status_code=500, detail="Ocurrió un error al reemplazar la receta")
 
-
-@router.put("/{id_receta}")
-async def actualizar_receta(
-    id_receta: int,
-    datos: str = Form(...),
-    fotoPrincipal: UploadFile | None = File(None),
-    fotosAdicionales: list[UploadFile] = File([]),
-    archivosPasos: list[UploadFile] = File([]),
-    user=Depends(obtener_usuario_actual),
-):
+# Actualizar receta
+@router.put("/{id_receta}", status_code=200)
+async def actualizar_receta(id_receta: int, receta: RecetaIn, user=Depends(obtener_usuario_actual)):
     try:
-        receta = json.loads(datos)
+        actualizado = await receta_service.actualizar_receta_completa(id_receta, receta, user["idUsuario"])
+        if not actualizado:
+            raise Exception("La receta no pudo ser actualizada")
 
-        if fotoPrincipal:
-            url_fp = await receta_service.guardar_archivo(fotoPrincipal)
-            receta["fotoPrincipal"] = url_fp
-
-        for foto in fotosAdicionales:
-            url_fa = await receta_service.guardar_archivo(foto)
-            receta.setdefault("fotosAdicionales", []).append({"urlFoto": url_fa})
-
-        for archivo in archivosPasos:
-            paso_idx = receta_service.extraer_indice(archivo.filename)
-            tipo = "video" if archivo.content_type.startswith("video") else "imagen"
-            url_media = await receta_service.guardar_archivo(archivo)
-            receta["pasos"][paso_idx]["multimedia"].append({
-                "tipo_contenido": tipo,
-                "urlContenido": url_media,
-                "extension": archivo.filename.split(".")[-1],
-            })
-
-        #await receta_service.actualizar_receta_completa(id_receta, receta, user["idUsuario"])
-        print(receta)
-        return {"mensaje": "Receta actualizada correctamente", "idReceta": id_receta}
+        return {
+            "mensaje": "Receta actualizada correctamente",
+            "idReceta": id_receta
+        }
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"❌ Error al actualizar receta: {e}")
+        raise HTTPException(status_code=500, detail="Ocurrió un error al actualizar la receta")
+
+#### Subir fotos y multimedia a recetas####
+@router.post("/{id_receta}/foto-principal")
+async def subir_foto_principal(id_receta: int, archivo: UploadFile = File(...)):
+    path = await receta_service.guardar_archivo(archivo)
+    await receta_service.insertar_foto_principal(id_receta, path)
+    return {"url": path}
+
+
+@router.post("/{id_receta}/foto-adicional")
+async def subir_foto_adicional(id_receta: int, archivo: UploadFile = File(...)):
+    path = await receta_service.guardar_archivo(archivo)
+    extension = archivo.filename.split(".")[-1]
+    await receta_service.insertar_foto_adicional(id_receta, path, extension)
+    return {"url": path}
 
 
 
+@router.post("/{id_receta}/paso/{nro_paso}/media")
+async def subir_multimedia_paso(id_receta: int, nro_paso: int, archivo: UploadFile = File(...)):
+    nro_paso_real = nro_paso + 1  
+    path = await receta_service.guardar_archivo(archivo)
+    print(path)
+    tipo = "video" if archivo.content_type.startswith("video") else "foto"
+    extension = archivo.filename.split(".")[-1]
+    await receta_service.insertar_multimedia_paso(id_receta, nro_paso_real, path, tipo, extension)
+    return {
+        "url": path,
+        "tipo_contenido": tipo,
+        "extension": extension
+    }
 
-
-
-
+#################################################
 
 #obtener calificaciones de una receta
 @router.get("/{id}/calificaciones", status_code=200)
-async def get_calificaciones_receta(id: str = Path(...), user=Depends(obtener_usuario_actual_opcional)):
+async def get_calificaciones_receta(id: str = Path(...)):
     try:
-        calificaciones = await receta_service.obtener_calificaciones_receta(id,user["idUsuario"] if user else None)
+        calificaciones = await receta_service.obtener_calificaciones_receta(id)
         return calificaciones
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener calificaciones: {str(e)}")
+
 
 #calificar receta
 @router.post("/{id}/calificar")

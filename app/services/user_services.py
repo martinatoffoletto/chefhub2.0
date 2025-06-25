@@ -158,6 +158,7 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
             r.descripcionReceta,
             r.fotoPrincipal,
             u.nickname,
+            u.avatar,
             ISNULL(AVG(c.calificacion), 0) AS promedioCalificacion
         FROM recetas r
         JOIN usuarios u ON r.idUsuario = u.idUsuario
@@ -165,7 +166,7 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
         WHERE r.idReceta IN (
             SELECT rf.idReceta FROM recetasFavoritas rf WHERE rf.idCreador = ?
         )
-        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname
+        GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname, u.avatar
     """
     try:
         recetas = await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
@@ -173,7 +174,6 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
     except Exception as e:
         print(f"Error al obtener favoritas: {e}")
         return []
-
 
 # Agregar receta favorita
 async def agregar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
@@ -222,48 +222,54 @@ async def obtener_notificaciones_por_usuario(id_usuario: int):
     return await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
 
 # Convertir usuario a alumno
-async def upgradear_a_alumno(alumno: Alumno) -> bool:
+async def upgradear_a_alumno(alumno, current_user) -> bool:
     query = """
-        INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO alumnos (idAlumno, numeroTarjeta, tramite, cuentaCorriente)
+        VALUES (?, ?, ?, 0)
     """
     await ejecutar_consulta_async(query, (
-        alumno.idAlumno,
-        alumno.numeroTarjeta,
-        alumno.dniFrente,
-        alumno.dniFondo,
-        alumno.tramite,
-        alumno.cuentaCorriente
+        current_user,
+        alumno["numeroTarjeta"],
+        alumno["tramite"]
     ))
     return True
 
 # Obtener cursos por ID de usuario
 async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
     query = """
-        SELECT 
+            SELECT 
             c.idCurso,
             c.descripcion AS nombreCurso,
-            c.contenidos,
-            c.requerimientos,
             c.duracion,
-            c.precio,
-            c.modalidad,
+            c.precio AS precioBase,
             cr.idCronograma,
             cr.fechaInicio,
             cr.fechaFin,
-            cr.vacantesDisponibles,
             s.nombreSede,
+            s.bonificacionCursos,
+            s.tipoPromocion,
+            s.promocionCursos,
+            -- Precio final aplicando bonificaciones y promociones multiplicativamente
+            c.precio 
+            * (1 - ISNULL(s.bonificacionCursos, 0) / 100)
+            * (1 - ISNULL(s.promocionCursos, 0) / 100) AS precioFinal,
             (
                 SELECT COUNT(*) 
                 FROM asistenciaCursos a2 
                 WHERE a2.idCronograma = cr.idCronograma 
                 AND a2.idAlumno = a.idAlumno
             ) AS totalAsistencias
-
         FROM asistenciaCursos a
         JOIN cronogramaCursos cr ON a.idCronograma = cr.idCronograma
         JOIN cursos c ON cr.idCurso = c.idCurso
         JOIN sedes s ON cr.idSede = s.idSede
         WHERE a.idAlumno = ?
+
     """
     return await ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
+
+
+async def guardar_dni(user_id: int, path: str, campo: str):
+    query = f"UPDATE usuarios SET {campo} = ? WHERE idUsuario = ?"
+    await ejecutar_consulta_async(query, (path, user_id))
+
