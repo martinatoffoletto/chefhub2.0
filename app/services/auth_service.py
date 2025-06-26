@@ -55,8 +55,16 @@ def crear_tokens(usuario):
 
 async def autenticar_usuario(email: str, password: str) -> dict | None:
     usuario = await buscar_usuario_por_mail(email)
+    print(usuario)
+    
+    if not usuario:
+        return None
 
-    if not usuario or usuario["password"] != password:
+    # Comparar password ingresado con el hash guardado
+    password_ingresada = password.encode('utf-8')
+    password_hash = usuario["password"].encode('utf-8')
+
+    if not bcrypt.checkpw(password_ingresada, password_hash):
         return None
 
     tipo_usuario = "Alumno" if usuario.get("numeroTarjeta") else "Usuario"
@@ -150,7 +158,9 @@ async def create_password(password: str, email:str):
     except Exception as e:
         print(f"Error hasheando contraseña: {e}")
         return False
-    
+
+
+### HAY QUE MOVERLO A USER SERVICE
 async def create_user(usuario:Usuario, password:str):
     try:
         id_user = await crear_usuario(usuario, password=password)

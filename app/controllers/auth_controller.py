@@ -58,7 +58,7 @@ async def register_first_step(username: str=Body(...), email: str=Body(...)):
 
         is_available = await auth_service.validar_alias(username=username)
         if not is_available:
-            raise HTTPException(status_code=403, detail="Alias no disponible")
+            raise HTTPException(status_code=409, detail="Alias no disponible")
 
         codigo = f"{random.randint(1000, 9999)}"
         email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo, subject="Registro")
@@ -200,6 +200,8 @@ async def create_user(email:str=Body(...), password:str=Body(...), tipo_usuario:
         print(f"Error creando usuario: {e}")
         raise HTTPException(status_code=500, detail="Error creando usuario")
 
+
+## BORRAR
 @router.post("/register/payment-method")
 async def payment_method(email: str=Body(...), card_number: str=Body(...), complete_name: str =Body(...), expire_date: str=Body(...), cvv: str=Body(...)):
     try:
@@ -223,7 +225,7 @@ async def payment_method(email: str=Body(...), card_number: str=Body(...), compl
         print(f"Error guardando método de pago: {e}")
         raise HTTPException(status_code=500, detail="Error en el servidor")
 
-
+### BORRAR
 @router.post("/register/personal-data")
 async def personal_data(email:str=Body(...), frontDNI:str=Body(...), backDNI: str=Body(...), nro_tramite: str=Body(...)):
     try:
@@ -328,6 +330,7 @@ async def reset_password(email:str=Body(...),password:str=Body(...)):
         print(f"Error cambiando contraseña: {e}")
         raise HTTPException(status_code=500, detail="Error en el servidor")
 
-@router.get("/alias_sugerido")
-async def alias_sugerido():
-    return {"message": "Alias sugerido endpoint"}
+@router.get("/alias-sugerido")
+async def alias_sugerido(alias:str):
+    exists= await auth_service.validar_alias(alias)
+    return {"disponible": exists}
