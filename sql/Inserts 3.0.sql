@@ -396,9 +396,9 @@ VALUES
     '01147781234',
     'palermo@cocinaedu.ar',
     '5491167891234',
-    'Descuento del 10%',
+    'Descuento',
     10.00,
-    'Descuento del 15%',
+    'Descuento',
     15.00
 ),
 (
@@ -407,9 +407,9 @@ VALUES
     '01149231234',
     'caballito@cocinaedu.ar',
     '5491145678901',
-    'Descuento del 10%',
+    'Descuento ',
     10.00,
-    'Descuento del 10%',
+    'Descuento',
     15.00
 ),
 (
@@ -418,9 +418,9 @@ VALUES
     '01147891234',
     'belgrano@cocinaedu.ar',
     '5491176543210',
-    'Descuento del 20%',
+    'Descuento ',
     20.00,
-    'Descuento del 5%',
+    'Descuento',
     5.00
 ),
 (
@@ -429,9 +429,9 @@ VALUES
     '01140001234',
     'centro@cocinaedu.ar',
     '5491198765432',
-    'Descuento del 5%',
+    'Descuento',
     5.00,
-    'Descuento del 10%',
+    'Descuento',
     10.00
 );
 
