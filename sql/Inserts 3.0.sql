@@ -498,31 +498,33 @@ VALUES
 
 INSERT INTO passwords (idpassword, password)
 VALUES
-(1,  'ana123'),
-(2,  'lucasr'),
-(3,  'marial'),
-(4,  'jperez'),
-(5,  'carlad'),
-(6,  'msosa89'),
-(7,  'sofi_fz'),
-(8,  'diegom'),
-(9,  'paulam'),
-(10, 'fercast'),
-(11, 'laurar'),
-(12, 'dtorres'),
-(13, 'carovaz'),
-(14, 'jorgem'),
-(15, 'valesu'),
-(16,  'msosa89'),
-(17,  'sofi_fz'),
-(18,  'diegom'),
-(19,  'paulam'),
-(20, 'fercast'),
-(21, 'laurar'),
-(22, 'dtorres'),
-(23, 'carovaz'),
-(24, 'jorgem'),
-(25, 'valesu'); 
+(1,  '$2b$12$YwiJC8ckwXbyhV10gx09GOeZoE3dwbJlE7rKiIrn5AnoQSfsyv2oi'), -- ana123
+(2,  '$2b$12$U4evop/5aNfwQazx3uuDMO0GTd3VfI5dbhEC3uVJWqXyprUiWaeBG'), -- lucasr
+(3,  '$2b$12$zYc7qcsFhWauFrC1SYE7ZOPEh/phDfJ8lAHAs7MEcVMHOCyg4YtUC'), -- marial
+(4,  '$2b$12$WnG.5jhzO2m7SmCZ1J8Y/.24biiCDjgku2zT3qnVRsi1zs6ecF52S'), -- jperez
+(5,  '$2b$12$LI5TleKARvIx4kCT/gTab.NGvwGfZf5DLVM48RlqIqsQg1mEQCuQ6'), -- carlad
+(6,  '$2b$12$qsuxKchfaROsXwoqokeTiOVAVb2ZKC9Xp5nJOMbmagvTsgpQsMZnK'), -- msosa89
+(7,  '$2b$12$36Oh9Rw12zw77HTJFR8/Lu5j4NXLeRKg8eFfxROTQAQvTdtauBI8O'), -- sofi_fz
+(8,  '$2b$12$lDkC6Zmme9rfNUR85pdJ0.vOJBmjcBSbpVTRLYApUrPX0xGLHlHK2'), -- diegom
+(9,  '$2b$12$3XlA6w2YjKqPIOdvM5PfieMRl.c6cfPXf4.GPIo0l04JFYaBtqSBa'), -- paulam
+(10, '$2b$12$WApAyfBSw5XIgZYmMsMexef7W/n20uRPieLDnQV7eWrX6/8X3vUfa'), -- fercast
+(11, '$2b$12$JkqR4R6r5DQ1qJ3QmLixquqAYxrUa3vypHyvNEOY6zUkv4yOpJyrW'), -- laurar
+(12, '$2b$12$DtgguUocZfoi6wor8uE/Ju3zwUpDgtP2WKTPETo8ZtP6wh67Ci6eq'), -- dtorres
+(13, '$2b$12$40Ok2oD6FwRgTJnYHmwH6eWaCGxgGNQvJS6U9CxgDzCqQePAhyKcC'), -- carovaz
+(14, '$2b$12$jhUiUZU2jMVkDWIk0W/nceQhsyBY.HXRGsTjfV2D7mZKsZ3LaERSW'), -- jorgem
+(15, '$2b$12$P38dvfAzYnRJ1J.bv/jnSOIMvxSHigCPAFwvaqyw5PqrHh4J8a0SS'), -- valesu
+(16, '$2b$12$/g7g264b1QwmzFGrdhl3Pu3Bi33A6SaJQ/HbfX2IkMx.qxXV.uGEa'), -- msosa89
+(17, '$2b$12$H7Sb5DIXgkDOhYTjtPVqCuD7qfDGbj9Xi9E2YJdiS2Gu5v.UEG3hC'), -- sofi_fz
+(18, '$2b$12$NqAR5Tmf8v9FvYfWUwqEtew5NqijOaGRL7JGmjBrmlZd9znJWmTvC'), -- diegom
+(19, '$2b$12$wlE81BqCrPAIksAsTAGsWeRgkor9xe9cL8ACFvTt8odcmnMWLK0SW'), -- paulam
+(20, '$2b$12$aRmVJd4ZSqwTT3OCu.WABe3n7wZurzkfSsJk/WuOwMNsLmHbwaKSu'), -- fercast
+(21, '$2b$12$qRhyQRiDang6WX4pe4nyA.rx0298PsycWin37WG3QX81HTJZaXW3e'), -- laurar
+(22, '$2b$12$vxhIRRvqyXIQAf3L4o7o4eiw4AJ1aJqVO2cnAUM1Fh9ckJCwI5Mym'), -- dtorres
+(23, '$2b$12$Jo.U.m4niKepSviNFUmC8.eJ6rJtX738lDfNiMrxVNzTsaq9a8P/y'), -- carovaz
+(24, '$2b$12$K54aBm1tZlvTd3oMwQM6N.u80FAfjIzCmxyikDXI1Jkm9TQkj/z0O'), -- jorgem
+(25, '$2b$12$3oVoFjYrS/OCjQcNu6iwnOXgLoics6daWR6XcGDUyvdmBOTXp5Hd2'); -- valesu
+
+
 
 INSERT INTO estadoReceta (idReceta, estado, fecha_creacion)
 VALUES
