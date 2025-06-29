@@ -16,9 +16,22 @@ router = APIRouter()
 
 @router.post("/auth/login")
 async def login(email: str = Body(...), password: str = Body(...)):
-    resultado = await auth_service.autenticar_usuario(email, password)
+    try:
+        resultado = await auth_service.autenticar_usuario(email, password)
+    except ValueError as e:
+        if "Invalid salt" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Credenciales inválidas"
+            )
+        else:
+            raise  
+
     if resultado is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas"
+        )
 
     return resultado
 
@@ -102,9 +115,10 @@ async def verify_code(email: str=Body(...), code:str=Body(...)):
 
 
 @router.post("/register/create-password")
-async def create_password(password: str = Body(...), email:str=Body(...)):
+async def creates_password(password: str = Body(...), email:str=Body(...)):
     try:
-        success = await auth_service.create_password(password, email)
+        success = await auth_service.create_password(password)
+        print(success, password)
         if not success:
             raise HTTPException(status_code=500, detail="Error creando la contraseña")
 
@@ -113,11 +127,16 @@ async def create_password(password: str = Body(...), email:str=Body(...)):
             raise HTTPException(status_code=404, detail="Datos temporales no encontrados")
 
         data = json.loads(data_raw) 
-        data["password"] = password #podemos guardar la contra hasheada, esto es temporal
+        data["password"] = success #podemos guardar la contra hasheada, esto es temporal
 
         redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
 
-        return {"status": "ok", "message": "Contraseña creada correctamente"}
+        return {
+            "status": "ok",
+            "message": "Contraseña creada correctamente",
+            "hashed_password": success 
+        }
+
 
     except HTTPException:
         raise

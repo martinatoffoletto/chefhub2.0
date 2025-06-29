@@ -54,23 +54,33 @@ def crear_tokens(usuario):
 
 
 async def autenticar_usuario(email: str, password: str) -> dict | None:
-    usuario = await buscar_usuario_por_mail(email)
-    print(usuario)
+    print(f"[autenticar_usuario] Email: {email}")
+    print(f"[autenticar_usuario] Contraseña ingresada: {password}")
     
+    usuario = await buscar_usuario_por_mail(email)
+
     if not usuario:
+        print("Usuario no encontrado.")
         return None
 
-    # Comparar password ingresado con el hash guardado
-    password_ingresada = password.encode('utf-8')
-    password_hash = usuario["password"].encode('utf-8')
+    try:
+        password_ingresada = password.encode('utf-8')
+        password_hash = usuario["password"].encode('utf-8')
+        print(f"Hash en base de datos: {usuario['password']}")
 
-    if not bcrypt.checkpw(password_ingresada, password_hash):
-        return None
+        if not bcrypt.checkpw(password_ingresada, password_hash):
+            print("Contraseña incorrecta.")
+            return None
+
+    except Exception as e:
+        print(f"Error al verificar contraseña: {e}")
+        raise
 
     tipo_usuario = "Alumno" if usuario.get("numeroTarjeta") else "Usuario"
     usuario["tipo_usuario"] = tipo_usuario
 
     access_token, refresh_token = crear_tokens(usuario)
+    print("Autenticación exitosa.")
 
     return {
         "access_token": access_token,
@@ -84,6 +94,7 @@ async def autenticar_usuario(email: str, password: str) -> dict | None:
             "avatar": usuario["avatar"],
         }
     }
+
 
 
 async def obtener_usuario_actual(token: str = Depends(oauth2_scheme)):
@@ -151,12 +162,15 @@ async def enviar_codigo_mail(email: str, codigo: str, subject:str):
         print(f"Error en el envío de mail: {e}")
         return False
 
-async def create_password(password: str, email:str):
+async def create_password(password: str):
     try:
+        print(f"[create_password] Contraseña original: {password}")
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        return hashed.decode('utf-8')
+        decoded = hashed.decode('utf-8')
+        print(f"[create_password] Hash generado: {decoded}")
+        return decoded
     except Exception as e:
-        print(f"Error hasheando contraseña: {e}")
+        print(f"[create_password] Error hasheando contraseña: {e}")
         return False
 
 
