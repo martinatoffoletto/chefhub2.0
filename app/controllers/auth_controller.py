@@ -9,7 +9,7 @@ import json
 from app.models.usuario import Usuario
 from app.models.usuario import Alumno
 from app.models.usuario import Password
-from app.services.user_services import cambiar_contrasena
+from app.services.user_services import cambiar_contrasena, asignar_avatar_a_usuario, asignar_password_a_usuario
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0)
 router = APIRouter()
@@ -63,15 +63,32 @@ async def refresh_token(body: RefreshTokenRequest):
     
 
 @router.post('/register/first-step')
-async def register_first_step(username: str=Body(...), email: str=Body(...)):
+async def register_first_step(username: str=Body(...), email: str=Body(...),nombre: str = Body(...), direccion: str = Body(...)):
     try:
         already_registered = await auth_service.buscar_usuario_por_mail(email)
+        print(f"Usuario ya registrado: {already_registered}")
         if already_registered:
-            raise HTTPException(status_code=403, detail="Email ya registrado")
+            habilitado = already_registered.get("habilitado", "").lower()
+            puede_recuperar = habilitado == "si"
+
+            return {
+                "status": "usuario_existente",
+                "message": "El email ya está registrado.",
+                "puede_recuperar": puede_recuperar
+            }
 
         is_available = await auth_service.validar_alias(username=username)
         if not is_available:
             raise HTTPException(status_code=409, detail="Alias no disponible")
+        
+        usuario = Usuario(
+            mail=email,
+            nickname=username,
+            nombre=nombre,
+            direccion=direccion,
+            habilitado='No')
+        
+        await auth_service.create_user(usuario, None)
 
         codigo = f"{random.randint(1000, 9999)}"
         email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo, subject="Registro")
@@ -115,172 +132,33 @@ async def verify_code(email: str=Body(...), code:str=Body(...)):
 
 
 @router.post("/register/create-password")
-async def creates_password(password: str = Body(...), email:str=Body(...)):
+async def creates_password(password: str = Body(...), email: str = Body(...)):
     try:
-        success = await auth_service.create_password(password)
-        print(success, password)
-        if not success:
-            raise HTTPException(status_code=500, detail="Error creando la contraseña")
-
-        data_raw = redis_client.get(f"registro_temp:{email}")
-        if not data_raw:
-            raise HTTPException(status_code=404, detail="Datos temporales no encontrados")
-
-        data = json.loads(data_raw) 
-        data["password"] = success #podemos guardar la contra hasheada, esto es temporal
-
-        redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
-
+        hashed_password = await auth_service.create_password(password)
+        user = await auth_service.buscar_usuario_por_mail(email)
+        await asignar_password_a_usuario(user['idUsuario'], hashed_password)
         return {
             "status": "ok",
-            "message": "Contraseña creada correctamente",
-            "hashed_password": success 
+            "message": "Contraseña creada correctamente"
         }
-
-
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"Error creando contraseña: {e}")
         raise HTTPException(status_code=500, detail="Error en el servidor")
+
+
+
     
 @router.post('/register/avatar')
-async def chosen_avatar(email:str=Body(...), avatar:str=Body(...)):
+async def chosen_avatar(email: str = Body(...), avatar: str = Body(...)):
     try:
-        data_raw = redis_client.get(f"registro_temp:{email}")
-        if not data_raw:
-            raise HTTPException(status_code=404, detail="Datos temporales no encontrados")
-
-        data = json.loads(data_raw)
-        data["avatar"]=avatar
-
-        redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
-
+        user = await auth_service.buscar_usuario_por_mail(email)
+        await auth_service.asignar_avatar_a_usuario(user['idUsuario'], avatar)
         return {"status": "ok", "message": "Avatar asignado correctamente"}
-
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"Error creando avatar: {e}")
         raise HTTPException(status_code=500, detail="Error en el servidor")
 
-    
-@router.post('/register/tipo_usuario')
-async def create_user(email:str=Body(...), password:str=Body(...), tipo_usuario:str=Body(...)):
-    try:
-        data_raw=redis_client.get(f"registro_temp:{email}")
-        if not data_raw:
-            raise HTTPException(status_code=404, detail="Datos temporales no encontrados")
-        
-        data=json.loads(data_raw)
-        data["tipo_usuario"] = tipo_usuario 
 
-        if tipo_usuario == "usuario":
-            usuario = Usuario(
-                mail=data["email"],
-                nickname=data["alias"],
-                habilitado='Si',
-                avatar=data.get("avatar", "")
-            )
-            id_user = await auth_service.create_user(usuario, password)
-
- 
-            redis_client.delete(f"registro_temp:{email}")
-
-            return {"status": "ok", "idUsuario": id_user}
-
-        elif tipo_usuario == "alumno":
-
-            usuario=Usuario(
-            mail=data["email"],
-            nickname=data["alias"],
-            habilitado='Si',
-            avatar=data.get("avatar", "")
-            )
-
-            id_user = await auth_service.create_user(usuario, password)
-            data["id_usuario"] = id_user
-
-            for key, value in data.items():
-                if isinstance(value, set):
-                    data[key] = list(value)
-
-            redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
-            
-            return {
-                "status": "pendiente_datos",
-                "message": f"Se requiere información adicional para tipo alumno, idUsuario: {id_user}"
-            }
-
-        else:
-            raise HTTPException(status_code=400, detail="Tipo de usuario inválido")
-        
-    except Exception as e:
-        print(f"Error creando usuario: {e}")
-        raise HTTPException(status_code=500, detail="Error creando usuario")
-
-
-## BORRAR
-@router.post("/register/payment-method")
-async def payment_method(email: str=Body(...), card_number: str=Body(...), complete_name: str =Body(...), expire_date: str=Body(...), cvv: str=Body(...)):
-    try:
-        data_raw=redis_client.get(f"registro_temp:{email}")
-        print(f"Buscando registro temporal para email: {email}, encontrado: {data_raw}")
-        if not data_raw:
-            raise HTTPException(status_code=404, detail="Datos temporales no encontrados")
-        
-        data=json.loads(data_raw)
-        last_four=card_number[-4:]
-        data["payment_method"]={
-            "card_number":last_four,
-            "complete_name": complete_name,
-            "expire_date": expire_date
-        }
-
-        redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
-        return {"status": "ok", "message": "Método de pago registrado temporalmente"}
-    
-    except Exception as e:
-        print(f"Error guardando método de pago: {e}")
-        raise HTTPException(status_code=500, detail="Error en el servidor")
-
-### BORRAR
-@router.post("/register/personal-data")
-async def personal_data(email:str=Body(...), frontDNI:str=Body(...), backDNI: str=Body(...), nro_tramite: str=Body(...)):
-    try:
-        data_raw=redis_client.get(f"registro_temp:{email}")
-        if not data_raw:
-            raise HTTPException(status_code=404, detail="Datos temporales no encontrados")
-        
-        data=json.loads(data_raw)
-        data["pesonal_data"]={
-            "front_dni": frontDNI,
-            "back_dni":backDNI,
-            "nro_tramite":nro_tramite
-        }
-
-        redis_client.set(f"registro_temp:{email}", json.dumps(data), ex=86400)
-
-        if data.get("tipo_usuario") != "alumno" or not data.get("id_usuario"):
-            raise HTTPException(status_code=400, detail="Usuario no válido para completar como alumno")
-
-        alumno = Alumno(
-            idAlumno=data["id_usuario"],
-            numeroTarjeta=data["payment_method"]["card_number"],
-            dniFrente=frontDNI,
-            dniFondo=backDNI,
-            tramite=nro_tramite,
-            cuentaCorriente=0.0
-        )
-        await auth_service.create_student(alumno)
-
-        redis_client.delete(f"registro_temp:{email}")
-
-        return {"status": "ok", "message": "Alumno creado correctamente"}
-        
-    except Exception as e:
-        print(f"Error finalizando registro de alumno: {e}")
-        raise HTTPException(status_code=500, detail="Error en el servidor")
     
 @router.post("/forgot_password")
 async def forgot_password(email: str = Body(...)):
@@ -330,7 +208,7 @@ async def reset_password(email:str=Body(...),password:str=Body(...)):
         if user is None:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        success = await auth_service.create_password(password, email)
+        success = await auth_service.create_password(password)
         if not success:
             raise HTTPException(status_code=500, detail="Error creando la contraseña")
         

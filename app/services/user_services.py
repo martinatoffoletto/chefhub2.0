@@ -23,9 +23,9 @@ async def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
 
     id_user_result = await ejecutar_consulta_async("SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC", fetch=True)
     id_user = id_user_result[0]['id'] if id_user_result else None
-
-    query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
-    await ejecutar_consulta_async(query_pass, (id_user, password))
+    if password:
+        query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
+        await ejecutar_consulta_async(query_pass, (id_user, password))
 
     return id_user
 
@@ -273,3 +273,24 @@ async def guardar_dni(user_id: int, path: str, campo: str):
     query = f"UPDATE alumnos SET {campo} = ? WHERE idAlumno = ?"
     await ejecutar_consulta_async(query, (path, user_id))
 
+async def asignar_avatar_a_usuario(user_id: int, avatar: str) -> bool:
+    query = "UPDATE usuarios SET avatar = ?, habilitado = 'Si' WHERE idUsuario = ?"
+    try:
+        await ejecutar_consulta_async(query, (avatar, user_id))
+        return True
+    except Exception as e:
+        print(f"Error al asignar avatar: {e}")
+        return False
+
+    
+async def asignar_password_a_usuario(idUsuario: str, password: str) -> bool:
+    query = """
+    INSERT INTO passwords (idpassword, password)
+    VALUES (?, ?)
+    """
+    try:
+        await ejecutar_consulta_async(query, (idUsuario, password))
+        return True
+    except Exception as e:
+        print(f"Error al asignar contraseña: {e}")
+        return False
