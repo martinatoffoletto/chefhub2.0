@@ -39,7 +39,6 @@ async def ejecutar_consulta_async(
     try:
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                print("📤 Ejecutando query")
                 if params:
                     await cursor.execute(query, params)
                 else:
