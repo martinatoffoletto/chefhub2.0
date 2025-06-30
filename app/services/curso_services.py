@@ -5,6 +5,7 @@ from app.models.sede import *
 from app.models.cronogramaCurso import *
 from datetime import datetime
 from fastapi import HTTPException
+from decimal import Decimal
 
 
 ########### LOGICA DE NEGOCIO CURSOS, SEDES Y OFERTAS ############
@@ -72,7 +73,7 @@ async def listar_sedes() -> List[Dict]:
 # Ver sedes por curso
 async def obtener_sedes_por_curso(id_curso: int) -> List[Dict]:
     query = """
-        SELECT s.idSede, s.nombreSede AS nombre, s.direccionSede AS direccion
+        SELECT *
         FROM cronogramaCursos cc
         JOIN sedes s ON cc.idSede = s.idSede
         WHERE cc.idCurso = ?
@@ -122,6 +123,7 @@ async def obtener_ofertas_de_curso(id_curso: int) -> List[Dict]:
 
 # Inscribir usuario a un cronograma
 async def inscribir_alumno_a_curso(id_alumno: int, id_cronograma: int, precio_abonado: float) -> Dict:
+    precio_abonado = Decimal(precio_abonado)
     # 1. Verificar si ya está inscrito
     query_check = """
         SELECT 1 FROM asistenciaCursos 
@@ -146,6 +148,8 @@ async def inscribir_alumno_a_curso(id_alumno: int, id_cronograma: int, precio_ab
     if not resultado_saldo:
         raise HTTPException(status_code=404, detail="Alumno no encontrado")
     saldo_actual = resultado_saldo[0].get('cuentaCorriente') or 0
+    if not isinstance(saldo_actual, Decimal):
+        saldo_actual = Decimal(saldo_actual)
 
     # 4. Calcular crédito usado y monto a cobrar con tarjeta
     credito_usado = min(saldo_actual, precio_abonado)
