@@ -208,7 +208,7 @@ async def get_calificaciones_receta(id: str = Path(...)):
         raise HTTPException(status_code=500, detail=f"Error al obtener calificaciones: {str(e)}")
 
 
-#calificar receta
+#calificar receta ##corregir bug de calificacion
 @router.post("/{id}/calificar")
 async def calificar_receta_endpoint(
     calificacion: Calificacion,

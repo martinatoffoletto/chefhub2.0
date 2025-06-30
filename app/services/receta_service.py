@@ -530,18 +530,19 @@ async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Califi
     )
 
     if not resultado or "idCalificacion" not in resultado[0]:
+        print("Error: No se pudo insertar la calificación o recuperar el ID.")
         return {"error": "No se pudo insertar la calificación o recuperar el ID.", "code": 500}
 
     id_calificacion = resultado[0]["idCalificacion"]
 
-    # Insertar el estado inicial como 'pendiente'
     query_estado = """
     INSERT INTO estadoComentario (idCalificacion, estado, observaciones)
-    VALUES (?, 'pendiente', '')
-
+    VALUES (?, ?, ?)
     """
-    await ejecutar_consulta_async(query_estado, (id_calificacion,))
+    await ejecutar_consulta_async(query_estado, (id_calificacion, 'pendiente', ''))
+
     return {"success": True, "idCalificacion": id_calificacion}
+
 
 ########################## guardar archivos multimedia ##########################
 

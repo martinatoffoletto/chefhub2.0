@@ -39,6 +39,7 @@ async def ejecutar_consulta_async(
     try:
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
+                print("📤 Ejecutando query")
                 if params:
                     await cursor.execute(query, params)
                 else:
@@ -48,10 +49,17 @@ async def ejecutar_consulta_async(
                     columns = [column[0] for column in cursor.description]
                     rows = await cursor.fetchall()
                     return [dict(zip(columns, row)) for row in rows]
+                else:
+                    await conn.commit()
+                    print("✅ Commit exitoso.")
+                    return None
 
-                await conn.commit()  
-                return None
     except Exception as e:
-        print(f"❌ Error ejecutando consulta:\n{query}\nCon parámetros: {params}\nError: {e}")
-        return None
+        try:
+            await conn.rollback()
+            print("♻️ Rollback ejecutado debido a error.")
+        except Exception:
+            pass
 
+        print(f"❌ Error ejecutando consulta:\n{query}\nCon parámetros: {params}\nError: {e}")
+        raise
