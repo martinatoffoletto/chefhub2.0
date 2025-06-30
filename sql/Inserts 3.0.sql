@@ -126,9 +126,9 @@ INSERT INTO unidades (descripcion) VALUES
 ('rodaja');
 
 INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones) VALUES
-(1, 11, 500, 7, 'Rodajas para capas'),
+(1, 11, 2, 6, 'Berenjena'),
 (1, 12, 300, 1, 'Ricota para relleno'),
-(1, 13, 400, 3, 'Salsa de tomate casera'),
+(1, 13, 150, 3, 'Salsa de tomate casera'),
 (2, 1, 200, 1, 'Cous cous cocido'),
 (2, 7, 300, 1, 'Vegetales variados'),
 (2, 4, 30, 3, 'Aceite de oliva para saltear'),
@@ -556,6 +556,11 @@ VALUES
 
 INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
 VALUES 
+(1,'foto', '.jpg', 'berenjena1.jpg'),
+(1, 'foto', '.jpg', 'b11.jpg'),
+(2, 'foto', '.jpg', 'salsa2.jpg'),
+(3, 'foto', '.jpg', 'b3.jpg'),
+(3, 'foto', '.jpg', 'b33.jpg'),
 (8, 'foto', '.jpg', 'img/recetaRisottoP0.jpg'),
 (17, 'foto', '.jpg', 'img/recetaCheesecakeP0.jpg'),
 (2, 'foto', '.jpg', 'img/recetaBerenjenaP3.jpg'),
