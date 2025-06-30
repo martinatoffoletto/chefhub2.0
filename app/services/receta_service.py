@@ -58,8 +58,8 @@ async def listar_recetas(
         params.append(id_tipo)
 
     if nickname:
-        filtros.append("u.nickname = ?")
-        params.append(nickname)
+        filtros.append("LOWER(u.nickname) LIKE LOWER(?)")
+        params.append(f"%{nickname}%")
 
     if nombre_receta:
         filtros.append("LOWER(r.nombreReceta) LIKE LOWER(?)")
@@ -529,15 +529,16 @@ async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Califi
         fetch=True
     )
 
-    if not resultado:
-        return {"error": "No se pudo insertar la calificación.", "code": 500}
+    if not resultado or "idCalificacion" not in resultado[0]:
+        return {"error": "No se pudo insertar la calificación o recuperar el ID.", "code": 500}
 
     id_calificacion = resultado[0]["idCalificacion"]
 
     # Insertar el estado inicial como 'pendiente'
     query_estado = """
-    INSERT INTO estadoComentario (idCalificacion, estado, fechaEstado, observaciones)
-    VALUES (?, 'pendiente', GETDATE(), '')
+    INSERT INTO estadoComentario (idCalificacion, estado, observaciones)
+    VALUES (?, 'pendiente', '')
+
     """
     await ejecutar_consulta_async(query_estado, (id_calificacion,))
     return {"success": True, "idCalificacion": id_calificacion}
