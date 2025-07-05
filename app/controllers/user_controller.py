@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Body
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Body, Query
 from app.services import user_services, receta_service
 from app.services.auth_service import obtener_usuario_actual, obtener_usuario_actual_opcional
 from app.models.usuario import DatosUpgradeAlumno
@@ -107,13 +107,10 @@ async def subir_dni(
     await user_services.guardar_dni(user["idUsuario"], path, campo)
     return {"url": path}
 
-
-
-
-@router.post("/me/asistencia/")
+@router.post("/me/asistencia")
 async def registrar_asistencia_usuario(
-    sede_id: int,
-    curso_id: int,
+    sede_id: int = Query(...) ,
+    curso_id: int = Query(...) ,
     current_user=Depends(obtener_usuario_actual)
 ):
     try:

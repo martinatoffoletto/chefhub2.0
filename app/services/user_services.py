@@ -295,8 +295,8 @@ async def asignar_password_a_usuario(idUsuario: str, password: str) -> bool:
         print(f"Error al asignar contraseña: {e}")
         return False
 
-async def registrar_asistencia_usuario(sede_id: int, curso_id: int, user: Dict) -> bool:
-    # 1. Buscar el cronograma activo para la sede y el curso
+async def registrar_asistencia_usuario(sede_id: int, curso_id: int, user: Dict) -> Dict:
+    # 1. Buscar el cronograma activo
     query_cronograma = """
         SELECT TOP 1 idCronograma
         FROM cronogramaCursos
@@ -306,17 +306,26 @@ async def registrar_asistencia_usuario(sede_id: int, curso_id: int, user: Dict) 
     cronograma = await ejecutar_consulta_async(query_cronograma, (sede_id, curso_id), fetch_one=True)
 
     if not cronograma:
-        raise Exception("No hay un cronograma activo para este curso y sede en la fecha actual.")
+        return {"ok": False, "error": "No hay un cronograma activo para este curso y sede."}
 
     id_cronograma = cronograma["idCronograma"]
 
-    # 2. Insertar la asistencia con el ID del usuario
+    # 2. Verificar si el alumno está inscripto
+    query_inscripcion = """
+        SELECT 1
+        FROM inscripciones
+        WHERE idAlumno = ? AND idCronograma = ?
+    """
+    inscripto = await ejecutar_consulta_async(query_inscripcion, (user["idUsuario"], id_cronograma), fetch_one=True)
+
+    if not inscripto:
+        return {"ok": False, "error": "El alumno no está inscripto en este curso."}
+
+    # 3. Registrar asistencia
     query_asistencia = """
         INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
         VALUES (?, ?, ?)
     """
-    await ejecutar_consulta_async(
-        query_asistencia,
-        (user["idUsuario"], id_cronograma, datetime.now())
-    )
-    return True
+    await ejecutar_consulta_async(query_asistencia, (user["idUsuario"], id_cronograma, datetime.now()))
+
+    return {"ok": True, "mensaje": "Asistencia registrada correctamente"}
