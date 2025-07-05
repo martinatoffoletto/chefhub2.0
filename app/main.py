@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.controllers import  asistencia_controller, user_controller, curso_controller, auth_controller, receta_controller
+from app.controllers import  user_controller, curso_controller, auth_controller, receta_controller
 from app.config.db import startup, shutdown
 from contextlib import asynccontextmanager
 
@@ -20,6 +20,6 @@ app.include_router(curso_controller.router, tags=["Cursos"])
 app.include_router(user_controller.router, tags=["User"])
 app.include_router(auth_controller.router, tags=["Auth"])
 app.include_router(receta_controller.router, tags=["Recetas"])
-app.include_router(asistencia_controller.router, tags=["Asistencias"])
+
 
 

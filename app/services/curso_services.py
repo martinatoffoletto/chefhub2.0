@@ -257,3 +257,5 @@ async def dar_baja_alumno_de_curso(id_alumno: int, id_cronograma: int, precio_ab
         "idAlumno": id_alumno,
         "idCronograma": id_cronograma
     }
+
+

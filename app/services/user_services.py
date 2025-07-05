@@ -294,3 +294,29 @@ async def asignar_password_a_usuario(idUsuario: str, password: str) -> bool:
     except Exception as e:
         print(f"Error al asignar contraseña: {e}")
         return False
+
+async def registrar_asistencia_usuario(sede_id: int, curso_id: int, user: Dict) -> bool:
+    # 1. Buscar el cronograma activo para la sede y el curso
+    query_cronograma = """
+        SELECT TOP 1 idCronograma
+        FROM cronogramaCursos
+        WHERE idSede = ? AND idCurso = ? AND
+              fechaInicio <= GETDATE() AND fechaFin >= GETDATE()
+    """
+    cronograma = await ejecutar_consulta_async(query_cronograma, (sede_id, curso_id), fetch_one=True)
+
+    if not cronograma:
+        raise Exception("No hay un cronograma activo para este curso y sede en la fecha actual.")
+
+    id_cronograma = cronograma["idCronograma"]
+
+    # 2. Insertar la asistencia con el ID del usuario
+    query_asistencia = """
+        INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
+        VALUES (?, ?, ?)
+    """
+    await ejecutar_consulta_async(
+        query_asistencia,
+        (user["idUsuario"], id_cronograma, datetime.now())
+    )
+    return True

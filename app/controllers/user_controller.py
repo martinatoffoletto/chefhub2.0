@@ -1,9 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Body
-from app.services import user_services
-from app.services.auth_service import obtener_usuario_actual
-from app.services.auth_service import obtener_usuario_actual_opcional
-from app.models.usuario import Alumno
-from app.services import receta_service  
+from app.services import user_services, receta_service
+from app.services.auth_service import obtener_usuario_actual, obtener_usuario_actual_opcional
 from app.models.usuario import DatosUpgradeAlumno
 from typing import Optional
 router = APIRouter(prefix="/user", tags=["User"])
@@ -113,7 +110,17 @@ async def subir_dni(
 
 
 
-#registrar asistencia usuario
-@router.post("/me/asistencia/{inscripcion_Id}")
-async def register_asistence(inscripcion_Id):
-   pass
+@router.post("/me/asistencia/")
+async def registrar_asistencia_usuario(
+    sede_id: int,
+    curso_id: int,
+    current_user=Depends(obtener_usuario_actual)
+):
+    try:
+        return await user_services.registrar_asistencia_usuario(
+            sede_id=sede_id,
+            curso_id=curso_id,
+            user=current_user
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
