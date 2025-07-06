@@ -17,48 +17,47 @@ async def startup():
     global pool
     print("Iniciando la conexión a la base de datos...")
     pool = await asyncodbc.create_pool(dsn=DSN)
+    print("✅ Pool creado.")
 
-# Función para cerrar la app
 async def shutdown():
     global pool
     try:
         print("Cerrando la conexión a la base de datos...")
-        pool.close()
-        await pool.wait_closed()
-        print("Conexión cerrada.")
+        if pool:
+            pool.close()
+            await pool.wait_closed()
+            print("✅ Conexión cerrada.")
     except Exception as e:
-        print("Error al cerrar la conexión:", e)
-
-
-# Función asíncrona para ejecutar consultas
+        print("❌ Error al cerrar la conexión:", e)
+        
 async def ejecutar_consulta_async(
     query: str,
     params: Optional[Tuple[Any, ...]] = None,
-    fetch: bool = False
+    fetch: bool = False,
+    external_conn: Optional[asyncodbc.Connection] = None
 ) -> Union[List[Dict[str, Any]], None]:
+    conn = external_conn or await pool.acquire()
     try:
-        async with pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                if params:
-                    await cursor.execute(query, params)
-                else:
-                    await cursor.execute(query)
-
-                if fetch:
-                    columns = [column[0] for column in cursor.description]
-                    rows = await cursor.fetchall()
-                    return [dict(zip(columns, row)) for row in rows]
-                else:
-                    await conn.commit()
-                    print("✅ Commit exitoso.")
-                    return None
-
+        async with conn.cursor() as cursor:
+            await cursor.execute(query, params or ())
+            if fetch:
+                columns = [col[0] for col in cursor.description]
+                rows = await cursor.fetchall()
+                resultado = [dict(zip(columns, row)) for row in rows]
+                return resultado
+            if not external_conn:
+                await conn.commit()
+            return None
     except Exception as e:
-        try:
-            await conn.rollback()
-            print("♻️ Rollback ejecutado debido a error.")
-        except Exception:
-            pass
-
-        print(f"❌ Error ejecutando consulta:\n{query}\nCon parámetros: {params}\nError: {e}")
+        if not external_conn:
+            try:
+                await conn.rollback()
+            except Exception:
+                pass
         raise
+    finally:
+        if not external_conn:
+            try:
+                await pool.release(conn)
+            except Exception:
+                pass

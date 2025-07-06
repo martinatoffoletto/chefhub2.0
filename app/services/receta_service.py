@@ -2,12 +2,12 @@ from app.services.user_services import obtener_nickname_por_id
 from app.models.receta import *
 from app.models.usuario import *
 from app.models.calificacion import *
-import os
+import app.config.db as db
 from pathlib import Path
 from fastapi import UploadFile
 from uuid import uuid4
-import shutil
 import re
+import aiofiles
 ############ LOGICA DE NEGOCIO RECETAS ############
 
 # Ver todas las recetas por orden alfabético  
@@ -94,7 +94,7 @@ async def listar_recetas(
     else:
         query += " ORDER BY r.nombreReceta ASC"
 
-    recetas = await ejecutar_consulta_async(query, params, fetch=True)
+    recetas = await db.ejecutar_consulta_async(query, params, fetch=True)
 
     if limite:
         recetas = recetas[:limite]
@@ -104,7 +104,7 @@ async def listar_recetas(
 #listar todos los ingredientes
 async def listar_ingredientes() -> List[Dict]:
     query = "SELECT idIngrediente, nombre FROM Ingredientes"
-    ingredientes = await ejecutar_consulta_async(query, fetch=True)
+    ingredientes = await db.ejecutar_consulta_async(query, fetch=True)
     return ingredientes if ingredientes else []
 
 #listar todos los tipos de receta
@@ -113,7 +113,7 @@ async def listar_tipos_receta() -> List[Dict]:
     Devuelve todos los tipos de receta (id y descripcion)
     """
     query = "SELECT idTipo, descripcion FROM TiposReceta"
-    tipos = await ejecutar_consulta_async(query, fetch=True)
+    tipos = await db.ejecutar_consulta_async(query, fetch=True)
     return tipos if tipos else []
 
 #listar todas las unidades
@@ -122,7 +122,7 @@ async def listar_unidades() -> List[Dict]:
     Devuelve todas las unidades (id y descripcion)
     """
     query = "SELECT idUnidad, descripcion FROM unidades"
-    unidades = await ejecutar_consulta_async(query, fetch=True)
+    unidades = await db.ejecutar_consulta_async(query, fetch=True)
     return unidades if unidades else []
 
 #listar conversiones
@@ -138,59 +138,65 @@ async def listar_conversiones() -> List[Dict]:
             factorConversiones
         FROM conversiones
     """
-    conversiones = await ejecutar_consulta_async(query, fetch=True)
+    conversiones = await db.ejecutar_consulta_async(query, fetch=True)
     return conversiones if conversiones else []
 
 #obtener receta por id 
+import asyncio
+from typing import Optional, Dict
+
 async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
-    # Datos generales de la receta
-    receta_query = """
-        SELECT 
-            r.idReceta,
-            r.nombreReceta,
-            r.descripcionReceta,
-            r.fotoPrincipal,
-            r.porciones,
-            r.cantidadPersonas,
-            u.nickname,
-            tr.descripcion AS tipoReceta
-        FROM recetas r
-        JOIN usuarios u ON r.idUsuario = u.idUsuario
-        LEFT JOIN tiposReceta tr ON r.idTipo = tr.idTipo
-        WHERE r.idReceta = ?
-    """
-    receta = await ejecutar_consulta_async(receta_query, [id_receta], fetch=True)
-    if not receta:
-        return None
-    receta = receta[0]
+    async with db.pool.acquire() as conn:
+        receta_query = """
+            SELECT 
+                r.idReceta,
+                r.nombreReceta,
+                r.descripcionReceta,
+                r.fotoPrincipal,
+                r.porciones,
+                r.cantidadPersonas,
+                u.nickname,
+                tr.descripcion AS tipoReceta
+            FROM recetas r
+            JOIN usuarios u ON r.idUsuario = u.idUsuario
+            LEFT JOIN tiposReceta tr ON r.idTipo = tr.idTipo
+            WHERE r.idReceta = ?
+        """
+        receta = await db.ejecutar_consulta_async(receta_query, [id_receta], fetch=True, external_conn=conn)
+        if not receta:
+            return None
+        receta = receta[0]
 
-    # Ingredientes utilizados
-    ingredientes_query = """
-        SELECT 
-            i.nombre AS ingrediente,
-            un.descripcion AS unidad,
-            u.cantidad,
-            u.observaciones
-        FROM utilizados u
-        JOIN ingredientes i ON u.idIngrediente = i.idIngrediente
-        JOIN unidades un ON u.idUnidad = un.idUnidad
-        WHERE u.idReceta = ?
-    """
-    ingredientes = await ejecutar_consulta_async(ingredientes_query, [id_receta], fetch=True)
+        ingredientes_query = """
+            SELECT 
+                i.nombre AS ingrediente,
+                un.descripcion AS unidad,
+                u.cantidad,
+                u.observaciones
+            FROM utilizados u
+            JOIN ingredientes i ON u.idIngrediente = i.idIngrediente
+            JOIN unidades un ON u.idUnidad = un.idUnidad
+            WHERE u.idReceta = ?
+        """
+        ingredientes = await db.ejecutar_consulta_async(ingredientes_query, [id_receta], fetch=True, external_conn=conn)
 
-    # Pasos de la receta
-    pasos_query = """
-        SELECT 
-            idPaso,
-            nroPaso,
-            texto AS descripcionPaso
-        FROM pasos
-        WHERE idReceta = ?
-        ORDER BY nroPaso ASC
-    """
-    pasos = await ejecutar_consulta_async(pasos_query, [id_receta], fetch=True)
+        pasos_query = """
+            SELECT 
+                idPaso,
+                nroPaso,
+                texto AS descripcionPaso
+            FROM pasos
+            WHERE idReceta = ?
+            ORDER BY nroPaso ASC
+        """
+        pasos = await db.ejecutar_consulta_async(pasos_query, [id_receta], fetch=True, external_conn=conn)
 
-    # Multimedia adicional por paso
+    # Cerramos conexión antes de consultas conflictivas
+
+    # Esperamos un toque para liberar locks y evitar deadlock (opcional)
+    await asyncio.sleep(0.1)
+
+    # Consultas de multimedia y calificaciones sin external_conn para no mantener locks
     media_query = """
         SELECT 
             m.idPaso,
@@ -200,13 +206,8 @@ async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
         JOIN pasos p ON m.idPaso = p.idPaso
         WHERE p.idReceta = ?
     """
-    media_por_paso = await ejecutar_consulta_async(media_query, [id_receta], fetch=True)
+    media_por_paso = await db.ejecutar_consulta_async(media_query, [id_receta], fetch=True)
 
-    # Asociar multimedia a cada paso
-    for paso in pasos:
-        paso["multimedia"] = [m for m in media_por_paso if m["idPaso"] == paso["idPaso"]]
-
-    # Calificaciones
     calificacion_query = """
         SELECT 
             ISNULL(AVG(calificacion), 0) AS promedio,
@@ -214,10 +215,12 @@ async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
         FROM calificaciones
         WHERE idReceta = ?
     """
-    calificaciones = await ejecutar_consulta_async(calificacion_query, [id_receta], fetch=True)
+    calificaciones = await db.ejecutar_consulta_async(calificacion_query, [id_receta], fetch=True)
     calificaciones = calificaciones[0] if calificaciones else {"promedio": 0, "cantidad": 0}
 
-    # Consolidar todo
+    for paso in pasos:
+        paso["multimedia"] = [m for m in media_por_paso if m["idPaso"] == paso["idPaso"]]
+
     receta_detallada = {
         **receta,
         "ingredientes": ingredientes,
@@ -226,6 +229,7 @@ async def obtener_receta_detallada(id_receta: int) -> Optional[Dict]:
     }
 
     return receta_detallada
+
 
 # Buscar idReceta por usuario y nombre 
 async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Optional[int]:
@@ -240,7 +244,7 @@ async def buscar_receta_por_usuario_y_nombre(id_usuario: int, nombre: str) -> Op
             WHERE idUsuario = ?
               AND LOWER(nombreReceta) = LOWER(?)
         """
-        resultados = await ejecutar_consulta_async(query, (id_usuario, nombre), fetch=True)
+        resultados = await db.ejecutar_consulta_async(query, (id_usuario, nombre), fetch=True)
         if resultados:
             return resultados[0]['idReceta']  
         return None
@@ -268,132 +272,112 @@ async def verificar_receta(id_usuario: int, nombre: str):
 
 # Crear receta
 async def crear_receta_completa(data: RecetaIn, id_usuario: int) -> int:
-    # Buscar o crear tipo
-    query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
-    resultado_tipo = await ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True)
-    if resultado_tipo:
-        id_tipo = resultado_tipo[0]["idTipo"]
-    else:
-        insert_tipo = """
-            INSERT INTO tiposReceta (descripcion)
-            OUTPUT INSERTED.idTipo
-            VALUES (?)
-        """
-        res_tipo = await ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True)
-        id_tipo = res_tipo[0]["idTipo"]
-
-    # Insertar receta (sin fotoPrincipal)
-    query_receta = """
-        INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, porciones, cantidadPersonas, idTipo)
-        OUTPUT INSERTED.idReceta
-        VALUES (?, ?, ?, ?, ?, ?)
-    """
-    receta_params = (
-        id_usuario,
-        data.nombreReceta,
-        data.descripcionReceta,
-        data.porciones,
-        data.cantidadPersonas,
-        id_tipo
-    )
-    resultado = await ejecutar_consulta_async(query_receta, receta_params, fetch=True)
-    if not resultado:
-        raise Exception("No se pudo insertar la receta")
-    id_receta = resultado[0]["idReceta"]
-
-    # Insertar ingredientes (buscar o crear)
-    for ing in data.ingredientes:
-        query_ing = "SELECT idIngrediente FROM ingredientes WHERE nombre = ?"
-        res_ing = await ejecutar_consulta_async(query_ing, (ing.nombre,), fetch=True)
-        if res_ing:
-            id_ingrediente = res_ing[0]["idIngrediente"]
+    async with db.pool.acquire() as conn:
+        # Buscar o crear tipo
+        query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
+        resultado_tipo = await db.ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True, external_conn=conn)
+        if resultado_tipo:
+            id_tipo = resultado_tipo[0]["idTipo"]
         else:
-            insert_ing = """
-                INSERT INTO ingredientes (nombre)
-                OUTPUT INSERTED.idIngrediente
+            insert_tipo = """
+                INSERT INTO tiposReceta (descripcion)
+                OUTPUT INSERTED.idTipo
                 VALUES (?)
             """
-            nuevo_ing = await ejecutar_consulta_async(insert_ing, (ing.nombre,), fetch=True)
-            id_ingrediente = nuevo_ing[0]["idIngrediente"]
+            res_tipo = await db.ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True, external_conn=conn)
+            id_tipo = res_tipo[0]["idTipo"]
 
-        await ejecutar_consulta_async(
-            """
-            INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
-        )
-
-    # Insertar pasos (sin multimedia)
-    for paso in data.pasos:
-        await ejecutar_consulta_async(
-            """
-            INSERT INTO pasos (idReceta, nroPaso, texto)
-            VALUES (?, ?, ?)
-            """,
-            (id_receta, paso.nroPaso, paso.texto)
-        )
-
-    # Insertar estado inicial
-    await ejecutar_consulta_async(
+        query_receta = """
+            INSERT INTO recetas (idUsuario, nombreReceta, descripcionReceta, porciones, cantidadPersonas, idTipo)
+            OUTPUT INSERTED.idReceta
+            VALUES (?, ?, ?, ?, ?, ?)
         """
-        INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
-        VALUES (?, GETDATE(), 'pendiente')
-        """,
-        (id_receta,)
-    )
+        receta_params = (
+            id_usuario,
+            data.nombreReceta,
+            data.descripcionReceta,
+            data.porciones,
+            data.cantidadPersonas,
+            id_tipo
+        )
+        resultado = await db.ejecutar_consulta_async(query_receta, receta_params, fetch=True, external_conn=conn)
+        if not resultado:
+            raise Exception("No se pudo insertar la receta")
+        id_receta = resultado[0]["idReceta"]
 
-    print(f"Receta creada con ID: {id_receta}")
-    return id_receta
-   
+        # Insertar ingredientes (buscar o crear)
+        for ing in data.ingredientes:
+            query_ing = "SELECT idIngrediente FROM ingredientes WHERE nombre = ?"
+            res_ing = await db.ejecutar_consulta_async(query_ing, (ing.nombre,), fetch=True, external_conn=conn)
+            if res_ing:
+                id_ingrediente = res_ing[0]["idIngrediente"]
+            else:
+                insert_ing = """
+                    INSERT INTO ingredientes (nombre)
+                    OUTPUT INSERTED.idIngrediente
+                    VALUES (?)
+                """
+                nuevo_ing = await db.ejecutar_consulta_async(insert_ing, (ing.nombre,), fetch=True, external_conn=conn)
+                id_ingrediente = nuevo_ing[0]["idIngrediente"]
+
+            await db.ejecutar_consulta_async(
+                """
+                INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones),
+                external_conn=conn
+            )
+
+        # Insertar pasos (sin multimedia)
+        for paso in data.pasos:
+            await db.ejecutar_consulta_async(
+                """
+                INSERT INTO pasos (idReceta, nroPaso, texto)
+                VALUES (?, ?, ?)
+                """,
+                (id_receta, paso.nroPaso, paso.texto),
+                external_conn=conn
+            )
+
+        # Insertar estado inicial
+        await db.ejecutar_consulta_async(
+            """
+            INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
+            VALUES (?, GETDATE(), 'pendiente')
+            """,
+            (id_receta,),
+            external_conn=conn
+        )
+
+        return id_receta
 
 # Reemplazar receta (borra la receta antigua despues de q crea una nueva)
 async def borrar_receta_completa(id_receta: int):
     try:
-        # 1. Eliminar multimedia (depende de pasos)
-        query_multimedia = """
-            DELETE m
-            FROM multimedia m
-            JOIN pasos p ON m.idPaso = p.idPaso
-            WHERE p.idReceta = ?
-        """
-        await ejecutar_consulta_async(query_multimedia, (id_receta,))
+        async with db.pool.acquire() as conn:
+            await db.ejecutar_consulta_async("""
+                DELETE m
+                FROM multimedia m
+                JOIN pasos p ON m.idPaso = p.idPaso
+                WHERE p.idReceta = ?
+            """, (id_receta,), external_conn=conn)
 
-        # 2. Eliminar pasos
-        query_pasos = "DELETE FROM pasos WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_pasos, (id_receta,))
+            await db.ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,), external_conn=conn)
+            await db.ejecutar_consulta_async("DELETE FROM fotos WHERE idReceta = ?", (id_receta,), external_conn=conn)
+            await db.ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,), external_conn=conn)
 
-        # 3. Eliminar fotos
-        query_fotos = "DELETE FROM fotos WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_fotos, (id_receta,))
+            await db.ejecutar_consulta_async("""
+                DELETE ec
+                FROM estadoComentario ec
+                JOIN calificaciones c ON ec.idCalificacion = c.idCalificacion
+                WHERE c.idReceta = ?
+            """, (id_receta,), external_conn=conn)
 
-        # 4. Eliminar utilizados (ingredientes de receta)
-        query_utilizados = "DELETE FROM utilizados WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_utilizados, (id_receta,))
-
-        # 5. Eliminar calificaciones relacionadas (con estados también)
-        query_estado_calificaciones = """
-            DELETE ec
-            FROM estadoComentario ec
-            JOIN calificaciones c ON ec.idCalificacion = c.idCalificacion
-            WHERE c.idReceta = ?
-        """
-        await ejecutar_consulta_async(query_estado_calificaciones, (id_receta,))
-
-        query_calificaciones = "DELETE FROM calificaciones WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_calificaciones, (id_receta,))
-
-        # 6. Eliminar estados de la receta
-        query_estado_receta = "DELETE FROM estadoReceta WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_estado_receta, (id_receta,))
-
-        # 7. Eliminar de recetas favoritas
-        query_favoritos = "DELETE FROM recetasFavoritas WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_favoritos, (id_receta,))
-
-        # 8. Finalmente, eliminar la receta
-        query_receta = "DELETE FROM recetas WHERE idReceta = ?"
-        await ejecutar_consulta_async(query_receta, (id_receta,))
+            await db.ejecutar_consulta_async("DELETE FROM calificaciones WHERE idReceta = ?", (id_receta,), external_conn=conn)
+            await db.ejecutar_consulta_async("DELETE FROM estadoReceta WHERE idReceta = ?", (id_receta,), external_conn=conn)
+            await db.ejecutar_consulta_async("DELETE FROM recetasFavoritas WHERE idReceta = ?", (id_receta,), external_conn=conn)
+            await db.ejecutar_consulta_async("DELETE FROM recetas WHERE idReceta = ?", (id_receta,), external_conn=conn)
 
         print(f"✅ Receta {id_receta} y todas sus relaciones fueron eliminadas.")
         return True
@@ -404,84 +388,70 @@ async def borrar_receta_completa(id_receta: int):
 # Actualizar receta
 async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario: int) -> bool:
     try:
-        # Buscar o crear tipo
-        query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
-        resultado_tipo = await ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True)
-        if resultado_tipo:
-            id_tipo = resultado_tipo[0]["idTipo"]
-        else:
-            insert_tipo = """
-                INSERT INTO tiposReceta (descripcion)
-                OUTPUT INSERTED.idTipo
-                VALUES (?)
-            """
-            res_tipo = await ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True)
-            id_tipo = res_tipo[0]["idTipo"]
+        async with db.pool.acquire() as conn:
+            query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
+            resultado_tipo = await db.ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True, external_conn=conn)
 
-        # Actualizar la receta principal
-        query_update = """
-            UPDATE recetas
-            SET nombreReceta = ?, descripcionReceta = ?, porciones = ?, cantidadPersonas = ?, idTipo = ?
-            WHERE idReceta = ? AND idUsuario = ?
-        """
-        await ejecutar_consulta_async(query_update, (
-            data.nombreReceta,
-            data.descripcionReceta,
-            data.porciones,
-            data.cantidadPersonas,
-            id_tipo,
-            id_receta,
-            id_usuario
-        ))
-
-        # Eliminar utilizados anteriores
-        await ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,))
-
-        # Insertar ingredientes (buscar o crear)
-        for ing in data.ingredientes:
-            query_ing = "SELECT idIngrediente FROM ingredientes WHERE nombre = ?"
-            res_ing = await ejecutar_consulta_async(query_ing, (ing.nombre,), fetch=True)
-            if res_ing:
-                id_ingrediente = res_ing[0]["idIngrediente"]
+            if resultado_tipo:
+                id_tipo = resultado_tipo[0]["idTipo"]
             else:
-                insert_ing = """
-                    INSERT INTO ingredientes (nombre)
-                    OUTPUT INSERTED.idIngrediente
+                insert_tipo = """
+                    INSERT INTO tiposReceta (descripcion)
+                    OUTPUT INSERTED.idTipo
                     VALUES (?)
                 """
-                nuevo_ing = await ejecutar_consulta_async(insert_ing, (ing.nombre,), fetch=True)
-                id_ingrediente = nuevo_ing[0]["idIngrediente"]
+                res_tipo = await db.ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True, external_conn=conn)
+                id_tipo = res_tipo[0]["idTipo"]
 
-            await ejecutar_consulta_async(
-                """
-                INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones)
-            )
-
-        # Eliminar pasos y multimedia previos
-        await ejecutar_consulta_async("DELETE FROM multimedia WHERE idPaso IN (SELECT idPaso FROM pasos WHERE idReceta = ?)", (id_receta,))
-        await ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,))
-
-        # Insertar nuevos pasos (sin multimedia)
-        for paso in data.pasos:
-            await ejecutar_consulta_async(
-                """
-                INSERT INTO pasos (idReceta, nroPaso, texto)
-                VALUES (?, ?, ?)
-                """,
-                (id_receta, paso.nroPaso, paso.texto)
-            )
-
-        # Insertar nuevo estado "pendiente"
-        await ejecutar_consulta_async(
+            query_update = """
+                UPDATE recetas
+                SET nombreReceta = ?, descripcionReceta = ?, porciones = ?, cantidadPersonas = ?, idTipo = ?
+                WHERE idReceta = ? AND idUsuario = ?
             """
-            INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
-            VALUES (?, GETDATE(), 'pendiente')
-            """,
-            (id_receta,)
-        )
+            await db.ejecutar_consulta_async(query_update, (
+                data.nombreReceta,
+                data.descripcionReceta,
+                data.porciones,
+                data.cantidadPersonas,
+                id_tipo,
+                id_receta,
+                id_usuario
+            ), external_conn=conn)
+
+            await db.ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,), external_conn=conn)
+
+            for ing in data.ingredientes:
+                query_ing = "SELECT idIngrediente FROM ingredientes WHERE nombre = ?"
+                res_ing = await db.ejecutar_consulta_async(query_ing, (ing.nombre,), fetch=True, external_conn=conn)
+                if res_ing:
+                    id_ingrediente = res_ing[0]["idIngrediente"]
+                else:
+                    insert_ing = """
+                        INSERT INTO ingredientes (nombre)
+                        OUTPUT INSERTED.idIngrediente
+                        VALUES (?)
+                    """
+                    nuevo_ing = await db.ejecutar_consulta_async(insert_ing, (ing.nombre,), fetch=True, external_conn=conn)
+                    id_ingrediente = nuevo_ing[0]["idIngrediente"]
+
+                await db.ejecutar_consulta_async("""
+                    INSERT INTO utilizados (idReceta, idIngrediente, cantidad, idUnidad, observaciones)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones), external_conn=conn)
+
+            await db.ejecutar_consulta_async("DELETE FROM multimedia WHERE idPaso IN (SELECT idPaso FROM pasos WHERE idReceta = ?)", (id_receta,), external_conn=conn)
+            await db.ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,), external_conn=conn)
+
+            for paso in data.pasos:
+                await db.ejecutar_consulta_async("""
+                    INSERT INTO pasos (idReceta, nroPaso, texto)
+                    VALUES (?, ?, ?)
+                """, (id_receta, paso.nroPaso, paso.texto), external_conn=conn)
+
+            await db.ejecutar_consulta_async("""
+                INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
+                VALUES (?, GETDATE(), 'pendiente')
+            """, (id_receta,), external_conn=conn)
 
         print(f"✅ Receta actualizada con ID: {id_receta}")
         return True
@@ -506,42 +476,47 @@ async def obtener_calificaciones_receta(id_receta: str) -> List[Dict]:
         LEFT JOIN estadoComentario ec ON c.idCalificacion = ec.idCalificacion
         WHERE c.idReceta = ?
     """
-    calificaciones = await ejecutar_consulta_async(query, [id_receta], fetch=True)
+    calificaciones = await db.ejecutar_consulta_async(query, [id_receta], fetch=True)
     return calificaciones if calificaciones else []
 
 
 #crear calificación de receta
 async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Calificacion):
-    query_existente = "SELECT * FROM calificaciones WHERE idReceta = ? AND idUsuario = ?"
-    existente = await ejecutar_consulta_async(query_existente, (id_receta, id_usuario), fetch=True)
+    async with db.pool.acquire() as conn:
+        # Verificar si ya existe
+        query_existente = "SELECT * FROM calificaciones WHERE idReceta = ? AND idUsuario = ?"
+        existente = await db.ejecutar_consulta_async(query_existente, (id_receta, id_usuario), fetch=True, external_conn=conn)
 
-    if existente:
-        return {"error": "Ya has calificado esta receta.", "code": 409}
+        if existente:
+            return {"error": "Ya has calificado esta receta.", "code": 409}
 
-    query_insert = """
-        INSERT INTO calificaciones (idReceta, idUsuario, calificacion, comentarios)
-        OUTPUT INSERTED.idCalificacion
-        VALUES (?, ?, ?, ?)
-    """
-    resultado = await ejecutar_consulta_async(
-        query_insert,
-        (id_receta, id_usuario, calificacion.calificacion, calificacion.comentarios),
-        fetch=True
-    )
+        # Insertar calificación
+        query_insert = """
+            INSERT INTO calificaciones (idReceta, idUsuario, calificacion, comentarios)
+            OUTPUT INSERTED.idCalificacion
+            VALUES (?, ?, ?, ?)
+        """
+        resultado = await db.ejecutar_consulta_async(
+            query_insert,
+            (id_receta, id_usuario, calificacion.calificacion, calificacion.comentarios),
+            fetch=True,
+            external_conn=conn
+        )
 
-    if not resultado or "idCalificacion" not in resultado[0]:
-        print("Error: No se pudo insertar la calificación o recuperar el ID.")
-        return {"error": "No se pudo insertar la calificación o recuperar el ID.", "code": 500}
+        if not resultado or "idCalificacion" not in resultado[0]:
+            print("Error: No se pudo insertar la calificación o recuperar el ID.")
+            return {"error": "No se pudo insertar la calificación o recuperar el ID.", "code": 500}
 
-    id_calificacion = resultado[0]["idCalificacion"]
+        id_calificacion = resultado[0]["idCalificacion"]
 
-    query_estado = """
-    INSERT INTO estadoComentario (idCalificacion, estado, observaciones)
-    VALUES (?, ?, ?)
-    """
-    await ejecutar_consulta_async(query_estado, (id_calificacion, 'pendiente', ''))
+        # Insertar estado del comentario
+        query_estado = """
+        INSERT INTO estadoComentario (idCalificacion, estado, observaciones)
+        VALUES (?, ?, ?)
+        """
+        await db.ejecutar_consulta_async(query_estado, (id_calificacion, 'pendiente', ''), external_conn=conn)
 
-    return {"success": True, "idCalificacion": id_calificacion}
+        return {"success": True, "idCalificacion": id_calificacion}
 
 
 ########################## guardar archivos multimedia ##########################
@@ -550,19 +525,18 @@ async def calificar_receta(id_receta: str, id_usuario: str, calificacion: Califi
 RAIZ_PROYECTO = Path(__file__).parent.parent.parent.resolve()
 RUTA_IMG = RAIZ_PROYECTO / "static" / "img"
 
-async def guardar_archivo(upload_file: UploadFile) -> str:
-    print(f"Guardando archivo: {upload_file.filename} con tipo {upload_file.content_type}")
-    os.makedirs(RUTA_IMG, exist_ok=True)
 
+async def guardar_archivo(upload_file: UploadFile) -> str:
     extension = Path(upload_file.filename).suffix
     nombre_archivo = f"{uuid4().hex}{extension}"
     ruta_completa = RUTA_IMG / nombre_archivo
 
-    with open(ruta_completa, "wb") as buffer:
-        shutil.copyfileobj(upload_file.file, buffer)
+    async with aiofiles.open(ruta_completa, "wb") as out_file:
+        while content := await upload_file.read(1024 * 1024):  # 1 MB chunk
+            await out_file.write(content)
 
-    url_relativa = f"img/{nombre_archivo}"
-    return url_relativa
+    return f"img/{nombre_archivo}"
+
 
 
 def extraer_indice(filename: str) -> int:
@@ -580,30 +554,30 @@ async def insertar_foto_principal(id_receta: int, url: str):
         SET fotoPrincipal = ?
         WHERE idReceta = ?
     """
-    await ejecutar_consulta_async(query, (url, id_receta))
+    await db.ejecutar_consulta_async(query, (url, id_receta))
 
 async def insertar_foto_adicional(id_receta: int, url: str, extension: str):
     query = """
         INSERT INTO fotos (idReceta, urlFoto, extension)
         VALUES (?, ?, ?)
     """
-    await ejecutar_consulta_async(query, (id_receta, url, extension))
+    await db.ejecutar_consulta_async(query, (id_receta, url, extension))
     
 async def insertar_multimedia_paso(id_receta: int, nro_paso: int, url: str, tipo_contenido: str, extension: str):
-    # Primero buscar idPaso
-    query_buscar = """
-        SELECT idPaso FROM pasos
-        WHERE idReceta = ? AND nroPaso = ?
-    """
-    res = await ejecutar_consulta_async(query_buscar, (id_receta, nro_paso), fetch=True)
-    if not res:
-        raise Exception("Paso no encontrado")
-    id_paso = res[0]["idPaso"]
+    async with db.pool.acquire() as conn:
+        # Buscar idPaso
+        query_buscar = """
+            SELECT idPaso FROM pasos
+            WHERE idReceta = ? AND nroPaso = ?
+        """
+        res = await db.ejecutar_consulta_async(query_buscar, (id_receta, nro_paso), fetch=True, external_conn=conn)
+        if not res:
+            raise Exception("Paso no encontrado")
+        id_paso = res[0]["idPaso"]
 
-    # Insertar multimedia
-    query_insert = """
-        INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
-        VALUES (?, ?, ?, ?)
-    """
-    await ejecutar_consulta_async(query_insert, (id_paso, tipo_contenido, extension, url))
-
+        # Insertar multimedia
+        query_insert = """
+            INSERT INTO multimedia (idPaso, tipo_contenido, extension, urlContenido)
+            VALUES (?, ?, ?, ?)
+        """
+        await db.ejecutar_consulta_async(query_insert, (id_paso, tipo_contenido, extension, url), external_conn=conn)

@@ -73,13 +73,13 @@ async def verificar_inscripcion(id: str, user=Depends(obtener_usuario_actual)):
 
 #Ver todas las ofertas de un curso 
 @router.get("/curso/{id}/ofertas")
-async def get_ofertas_por_curso(id: str):
-    try:
-        return await curso_services.obtener_ofertas_de_curso(id)
-    except curso_services.OfertasNoExiste:
-        raise HTTPException(status_code=404, detail="Oferta no encontradas")
-    except curso_services.ParametroInvalido:
+async def get_ofertas_por_curso(id: int):
+    if id <= 0:
         raise HTTPException(status_code=400, detail="Parámetro inválido")
+    ofertas = await curso_services.obtener_ofertas_de_curso(id)
+    if not ofertas:
+        raise HTTPException(status_code=404, detail="Oferta no encontrada")
+    return ofertas
 
 
 

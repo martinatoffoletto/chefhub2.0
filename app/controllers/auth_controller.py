@@ -169,6 +169,7 @@ async def forgot_password(email: str = Body(...)):
             raise HTTPException(status_code=404, detail="Mail no encontrado")
 
         codigo = f"{random.randint(1000, 9999)}"
+        print(f"Código generado: {codigo}")
         email_sent = await auth_service.enviar_codigo_mail(email=email, codigo=codigo, subject="Olvidé mi contraseña")
         if not email_sent:
             raise HTTPException(status_code=500, detail="Error enviando el código")
