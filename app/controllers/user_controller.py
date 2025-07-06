@@ -109,15 +109,23 @@ async def subir_dni(
 
 @router.post("/me/asistencia")
 async def registrar_asistencia_usuario(
-    sede_id: int = Query(...) ,
-    curso_id: int = Query(...) ,
+    sede_id: int = Query(...),
+    curso_id: int = Query(...),
     current_user=Depends(obtener_usuario_actual)
 ):
     try:
-        return await user_services.registrar_asistencia_usuario(
+        result = await user_services.registrar_asistencia_usuario(
             sede_id=sede_id,
             curso_id=curso_id,
             user=current_user
         )
+
+        if not result.get("ok"):
+            status = result.get("status", 500)
+            detail = result.get("error", "Error desconocido")
+            raise HTTPException(status_code=status, detail=detail)
+
+        return result  # Esto devolverá 200 OK automáticamente
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error inesperado: " + str(e))

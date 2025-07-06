@@ -246,6 +246,7 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
             cr.fechaInicio,
             cr.fechaFin,
             s.nombreSede,
+            s.idSede,
             s.bonificacionCursos,
             s.tipoPromocion,
             s.promocionCursos,
@@ -296,32 +297,32 @@ async def asignar_password_a_usuario(idUsuario: str, password: str) -> bool:
         return False
 
 async def registrar_asistencia_usuario(sede_id: int, curso_id: int, user: Dict) -> Dict:
-    # 1. Buscar el cronograma activo
     query_cronograma = """
         SELECT TOP 1 idCronograma
         FROM cronogramaCursos
-        WHERE idSede = ? AND idCurso = ? AND
-              fechaInicio <= GETDATE() AND fechaFin >= GETDATE()
+        WHERE idSede = ? AND idCurso = ?
     """
-    cronograma = await ejecutar_consulta_async(query_cronograma, (sede_id, curso_id), fetch_one=True)
+    cronogramas = await ejecutar_consulta_async(query_cronograma, (sede_id, curso_id), fetch=True)
+    cronograma = cronogramas[0] if cronogramas else None
 
     if not cronograma:
-        return {"ok": False, "error": "No hay un cronograma activo para este curso y sede."}
+        return {"ok": False, "status": 500, "error": "No hay un cronograma activo para este curso y sede."}
 
     id_cronograma = cronograma["idCronograma"]
 
-    # 2. Verificar si el alumno está inscripto
+    # Verificar si el alumno ya está inscripto en asistenciaCursos
     query_inscripcion = """
         SELECT 1
-        FROM inscripciones
+        FROM asistenciaCursos
         WHERE idAlumno = ? AND idCronograma = ?
     """
-    inscripto = await ejecutar_consulta_async(query_inscripcion, (user["idUsuario"], id_cronograma), fetch_one=True)
+    inscripciones = await ejecutar_consulta_async(query_inscripcion, (user["idUsuario"], id_cronograma), fetch=True)
+    inscripto = inscripciones[0] if inscripciones else None
 
     if not inscripto:
-        return {"ok": False, "error": "El alumno no está inscripto en este curso."}
+        return {"ok": False, "status": 403, "error": "El alumno no está inscripto en este curso."}
 
-    # 3. Registrar asistencia
+    # Registrar nueva asistencia (si querés registrar otra asistencia independiente)
     query_asistencia = """
         INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
         VALUES (?, ?, ?)
