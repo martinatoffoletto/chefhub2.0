@@ -182,8 +182,12 @@ async def forgot_password(email: str = Body(...)):
 
         return {"status": "ok", "message": "Código enviado al mail"}
 
+    except HTTPException as http_err:
+        raise http_err
+
     except Exception as e:
-        return {"message": "Forgot password endpoint"}
+        print(f"Error inesperado en forgot_password: {e}")
+        raise HTTPException(status_code=500, detail="Error interno en forgot_password")
 
 @router.post("/forgot-password-code-verification")
 async def forgot_password_code_verification(email:str=Body(...), code:str=Body(...)):
@@ -197,6 +201,9 @@ async def forgot_password_code_verification(email:str=Body(...), code:str=Body(.
             raise HTTPException(status_code=403, detail="Código inválido")
 
         return {"status": "ok", "message": "Código validado correctamente"}
+    except HTTPException as http_err:
+        raise http_err
+    
     except Exception as e:
         print(f"Error en validación de código: {e}")
         raise HTTPException(status_code=500, detail="Error en la validación de código")
