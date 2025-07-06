@@ -3,137 +3,191 @@ from app.models.asistenciaCurso import *
 from app.models.cronogramaCurso import *
 from app.models.curso import *
 from datetime import datetime
+import app.config.db as db
+
 
 ############ SE USA EN AUTH SERVICE Y CONTROLLER ############
 
 #registro de usuario
 async def crear_usuario(usuario: Usuario, password: str) -> Optional[int]:
-    query_user = """
-        INSERT INTO usuarios (mail, nickname, habilitado, nombre, direccion, avatar)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """
-    await ejecutar_consulta_async(query_user, (
-        usuario.mail,
-        usuario.nickname,
-        usuario.habilitado,
-        usuario.nombre,
-        usuario.direccion,
-        usuario.avatar
-    ))
+    async with db.pool.acquire() as conn:
+        try:
+            # Inserta el usuario
+            query_user = """
+                INSERT INTO usuarios (mail, nickname, habilitado, nombre, direccion, avatar)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """
+            await db.ejecutar_consulta_async(query_user, (
+                usuario.mail,
+                usuario.nickname,
+                usuario.habilitado,
+                usuario.nombre,
+                usuario.direccion,
+                usuario.avatar
+            ), external_conn=conn)
 
-    id_user_result = await ejecutar_consulta_async("SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC", fetch=True)
-    id_user = id_user_result[0]['id'] if id_user_result else None
-    if password:
-        query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
-        await ejecutar_consulta_async(query_pass, (id_user, password))
+            # Obtener el id recién insertado
+            id_user_result = await db.ejecutar_consulta_async(
+                "SELECT TOP 1 idUsuario as id FROM usuarios ORDER BY idUsuario DESC",
+                fetch=True,
+                external_conn=conn
+            )
+            id_user = id_user_result[0]['id'] if id_user_result else None
 
-    return id_user
+            # Insertar la contraseña
+            if password and id_user:
+                query_pass = "INSERT INTO passwords (idpassword, password) VALUES (?, ?)"
+                await db.ejecutar_consulta_async(query_pass, (id_user, password), external_conn=conn)
+
+            await conn.commit()
+            return id_user
+
+        except Exception as e:
+            await conn.rollback()
+            print("❌ Error creando usuario:", e)
+            raise
+
 
 #registro alumno
-async def crear_alumno(alumno:Alumno)-> Optional[int]:
-    query_user="""
-        INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
-        VALUES(?,?,?,?,?,?)
-    """
+async def crear_alumno(alumno: Alumno) -> Optional[int]:
+    async with db.pool.acquire() as conn:
+        try:
+            # Inserta en la tabla alumnos
+            query_user = """
+                INSERT INTO alumnos (idAlumno, numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """
+            await db.ejecutar_consulta_async(query_user, (
+                alumno.idAlumno,
+                alumno.numeroTarjeta,
+                alumno.dniFrente,
+                alumno.dniFondo,
+                alumno.tramite,
+                alumno.cuentaCorriente
+            ), external_conn=conn)
 
-    await ejecutar_consulta_async(query_user, (
-        alumno.idAlumno,
-        alumno.numeroTarjeta,
-        alumno.dniFrente,
-        alumno.dniFondo,
-        alumno.tramite,
-        alumno.cuentaCorriente
-    ))
+            # Recupera el último id insertado
+            id_user_result = await db.ejecutar_consulta_async(
+                "SELECT TOP 1 idAlumno as id FROM alumnos ORDER BY idAlumno DESC",
+                fetch=True,
+                external_conn=conn
+            )
 
-    id_user_result=await ejecutar_consulta_async("SELECT TOP 1 idAlumno as id FROM alumnos ORDER BY idAlumno DESC", fetch=True)
-    id_user=id_user_result[0]['id'] if id_user_result else None
+            id_user = id_user_result[0]['id'] if id_user_result else None
 
-    return id_user
+            await conn.commit()
+            return id_user
 
+        except Exception as e:
+            await conn.rollback()
+            print("❌ Error creando alumno:", e)
+            raise
 
 # Buscar usuario por ID (con datos de alumno y contraseña)
 async def buscar_usuario_por_id(id_usuario: int) -> Optional[Dict]:
-    query_user = "SELECT * FROM usuarios WHERE idUsuario = ?"
-    usuario = await ejecutar_consulta_async(query_user, (id_usuario,), fetch=True)
-    
-    if not usuario:
-        return None
+    async with db.pool.acquire() as conn:
+        try:
+            # Buscar usuario
+            query_user = "SELECT * FROM usuarios WHERE idUsuario = ?"
+            usuario = await db.ejecutar_consulta_async(query_user, (id_usuario,), fetch=True, external_conn=conn)
 
-    user_data = dict(usuario[0]) 
+            if not usuario:
+                return None
 
-    # Buscar password
-    query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
-    pass_result = await ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True)
-    if pass_result:
-        user_data['password'] = pass_result[0]['password']
+            user_data = dict(usuario[0]) 
 
-    # Buscar si es alumno
-    query_alumno = """
-        SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
-        FROM alumnos WHERE idAlumno = ?
-    """
-    alumno_result = await ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True)
-    if alumno_result:
-        user_data.update(alumno_result[0]) 
+            # Buscar contraseña
+            query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
+            pass_result = await db.ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True, external_conn=conn)
+            if pass_result:
+                user_data['password'] = pass_result[0]['password']
 
-    return user_data
+            # Buscar datos de alumno
+            query_alumno = """
+                SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
+                FROM alumnos WHERE idAlumno = ?
+            """
+            alumno_result = await db.ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True, external_conn=conn)
+            if alumno_result:
+                user_data.update(alumno_result[0])
+
+            return user_data
+
+        except Exception as e:
+            print("❌ Error buscando usuario por ID:", e)
+            raise
 
 # Buscar usuario por mail
 async def buscar_usuario_por_mail(mail: str) -> Optional[Dict]:
-    query_user = "SELECT * FROM usuarios WHERE mail = ?"
-    usuario = await ejecutar_consulta_async(query_user, (mail,), fetch=True)
-    
-    if not usuario:
-        return None
+    async with db.pool.acquire() as conn:
+        try:
+            # Buscar usuario
+            query_user = "SELECT * FROM usuarios WHERE mail = ?"
+            usuario = await db.ejecutar_consulta_async(query_user, (mail,), fetch=True, external_conn=conn)
+            if not usuario:
+                return None
 
-    user_data = dict(usuario[0])
-    id_usuario = user_data['idUsuario']
+            user_data = dict(usuario[0])
+            id_usuario = user_data['idUsuario']
 
+            # Buscar contraseña
+            query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
+            pass_result = await db.ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True, external_conn=conn)
+            if pass_result:
+                user_data['password'] = pass_result[0]['password']
 
-    query_pass = "SELECT password FROM passwords WHERE idpassword = ?"
-    pass_result = await ejecutar_consulta_async(query_pass, (id_usuario,), fetch=True)
-    if pass_result:
-        user_data['password'] = pass_result[0]['password']
+            # Buscar datos de alumno (si lo es)
+            query_alumno = """
+                SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
+                FROM alumnos WHERE idAlumno = ?
+            """
+            alumno_result = await db.ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True, external_conn=conn)
+            if alumno_result:
+                user_data.update(alumno_result[0])
 
+            return user_data
 
-    query_alumno = """
-        SELECT numeroTarjeta, dniFrente, dniFondo, tramite, cuentaCorriente
-        FROM alumnos WHERE idAlumno = ?
-    """
-    alumno_result = await ejecutar_consulta_async(query_alumno, (id_usuario,), fetch=True)
-    if alumno_result:
-        user_data.update(alumno_result[0])
-
-    return user_data
+        except Exception as e:
+            print("❌ Error buscando usuario por mail:", e)
+            raise
 
 # Cambiar contraseña
 async def cambiar_contrasena(pass_obj: Password) -> bool:
-    first_query="""SELECT password FROM passwords WHERE idpassword= ?"""
-    old_psswd=await ejecutar_consulta_async(first_query, (pass_obj.idpassword,), fetch=True)
-    if old_psswd:
-        print("Contraseña vieja:", old_psswd[0]["password"])
-    else:
-        print("No se encontró ninguna contraseña con ese ID")
+    async with db.pool.acquire() as conn:
+        try:
+            # Obtener la contraseña actual
+            first_query = "SELECT password FROM passwords WHERE idpassword= ?"
+            old_psswd = await db.ejecutar_consulta_async(first_query, (pass_obj.idpassword,), fetch=True, external_conn=conn)
+            if old_psswd:
+                print("Contraseña vieja:", old_psswd[0]["password"])
+            else:
+                print("No se encontró ninguna contraseña con ese ID")
 
-    query = """
-        UPDATE passwords SET password = ? WHERE idpassword = ?
-    """
-    await ejecutar_consulta_async(query, (pass_obj.password, pass_obj.idpassword))
+            # Actualizar contraseña
+            update_query = "UPDATE passwords SET password = ? WHERE idpassword = ?"
+            await db.ejecutar_consulta_async(update_query, (pass_obj.password, pass_obj.idpassword), external_conn=conn)
 
-    new_query = "SELECT password FROM passwords WHERE idpassword = ?"
-    result = await ejecutar_consulta_async(new_query, (pass_obj.idpassword,), fetch=True)
+            # Verificar nueva contraseña
+            new_query = "SELECT password FROM passwords WHERE idpassword = ?"
+            result = await db.ejecutar_consulta_async(new_query, (pass_obj.idpassword,), fetch=True, external_conn=conn)
+            if result:
+                print("Contraseña actualizada:", result[0]["password"])
+            else:
+                print("No se encontró ninguna contraseña con ese ID")
 
-    if result:
-        print("Contraseña actualizada:", result[0]["password"])
-    else:
-        print("No se encontró ninguna contraseña con ese ID")
+            await conn.commit()
+            return True
 
-    return True
+        except Exception as e:
+            await conn.rollback()
+            print("❌ Error actualizando contraseña:", e)
+            raise
+
 
 #buscar usuario por alias
 async def buscar_usuario_por_alias(username: str):
     query_user="SELECT * FROM usuarios WHERE nickname = ?"
-    usuario= await ejecutar_consulta_async(query_user, (username,), fetch=True)
+    usuario= await db.ejecutar_consulta_async(query_user, (username,), fetch=True)
 
     if usuario:
         return True
@@ -143,7 +197,7 @@ async def buscar_usuario_por_alias(username: str):
 # Obtener el nickname de un usuario por su ID
 async def obtener_nickname_por_id(id_usuario: int) -> Optional[str]:
     query = "SELECT nickname FROM usuarios WHERE idUsuario = ?"
-    resultado = await ejecutar_consulta_async(query, [id_usuario], fetch=True)
+    resultado = await db.ejecutar_consulta_async(query, [id_usuario], fetch=True)
     return resultado[0]["nickname"] if resultado else None
 
 
@@ -169,7 +223,7 @@ async def obtener_recetas_favoritas(id_usuario: int) -> List[Dict]:
         GROUP BY r.idReceta, r.nombreReceta, r.descripcionReceta, r.fotoPrincipal, u.nickname, u.avatar
     """
     try:
-        recetas = await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
+        recetas = await db.ejecutar_consulta_async(query, (id_usuario,), fetch=True)
         return recetas
     except Exception as e:
         print(f"Error al obtener favoritas: {e}")
@@ -182,7 +236,7 @@ async def agregar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
         VALUES (?, ?)
     """
     try:
-        await ejecutar_consulta_async(query, (id_usuario, id_receta))
+        await db.ejecutar_consulta_async(query, (id_usuario, id_receta))
         return True
     except Exception as e:
         print(f"Error al agregar favorita: {e}")
@@ -196,7 +250,7 @@ async def eliminar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
         WHERE idCreador = ? AND idReceta = ?
     """
     try:
-        await ejecutar_consulta_async(query, (id_usuario, id_receta))
+        await db.ejecutar_consulta_async(query, (id_usuario, id_receta))
         return True
     except Exception as e:
         print(f"Error al eliminar favorita: {e}")
@@ -208,7 +262,7 @@ async def verificar_receta_favorita(id_usuario: int, id_receta: int) -> bool:
         SELECT COUNT(*) AS total FROM recetasFavoritas
         WHERE idCreador = ? AND idReceta = ?
     """
-    resultado = await ejecutar_consulta_async(query, (id_usuario, id_receta), fetch=True)
+    resultado = await db.ejecutar_consulta_async(query, (id_usuario, id_receta), fetch=True)
     return resultado[0]['total'] > 0 if resultado else False
 
 #obtener notificaciones
@@ -219,7 +273,7 @@ async def obtener_notificaciones_por_usuario(id_usuario: int):
         WHERE idUsuario = ?
         ORDER BY fecha_envio DESC
     """
-    return await ejecutar_consulta_async(query, (id_usuario,), fetch=True)
+    return await db.ejecutar_consulta_async(query, (id_usuario,), fetch=True)
 
 # Convertir usuario a alumno
 async def upgradear_a_alumno(alumno, current_user) -> bool:
@@ -227,7 +281,7 @@ async def upgradear_a_alumno(alumno, current_user) -> bool:
         INSERT INTO alumnos (idAlumno, numeroTarjeta, tramite, cuentaCorriente)
         VALUES (?, ?, ?, 0)
     """
-    await ejecutar_consulta_async(query, (
+    await db.ejecutar_consulta_async(query, (
         current_user,
         alumno["numeroTarjeta"],
         alumno["tramite"]
@@ -267,17 +321,17 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
         WHERE a.idAlumno = ?
 
     """
-    return await ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
+    return await db.ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
 
 
 async def guardar_dni(user_id: int, path: str, campo: str):
     query = f"UPDATE alumnos SET {campo} = ? WHERE idAlumno = ?"
-    await ejecutar_consulta_async(query, (path, user_id))
+    await db.ejecutar_consulta_async(query, (path, user_id))
 
 async def asignar_avatar_a_usuario(user_id: int, avatar: str) -> bool:
     query = "UPDATE usuarios SET avatar = ?, habilitado = 'Si' WHERE idUsuario = ?"
     try:
-        await ejecutar_consulta_async(query, (avatar, user_id))
+        await db.ejecutar_consulta_async(query, (avatar, user_id))
         return True
     except Exception as e:
         print(f"Error al asignar avatar: {e}")
@@ -290,43 +344,56 @@ async def asignar_password_a_usuario(idUsuario: str, password: str) -> bool:
     VALUES (?, ?)
     """
     try:
-        await ejecutar_consulta_async(query, (idUsuario, password))
+        await db.ejecutar_consulta_async(query, (idUsuario, password))
         return True
     except Exception as e:
         print(f"Error al asignar contraseña: {e}")
         return False
 
 async def registrar_asistencia_usuario(sede_id: int, curso_id: int, user: Dict) -> Dict:
-    query_cronograma = """
-        SELECT TOP 1 idCronograma
-        FROM cronogramaCursos
-        WHERE idSede = ? AND idCurso = ?
-    """
-    cronogramas = await ejecutar_consulta_async(query_cronograma, (sede_id, curso_id), fetch=True)
-    cronograma = cronogramas[0] if cronogramas else None
+    async with db.pool.acquire() as conn:
+        try:
+            # Buscar cronograma activo
+            query_cronograma = """
+                SELECT TOP 1 idCronograma
+                FROM cronogramaCursos
+                WHERE idSede = ? AND idCurso = ?
+            """
+            cronogramas = await db.ejecutar_consulta_async(query_cronograma, (sede_id, curso_id), fetch=True, external_conn=conn)
+            cronograma = cronogramas[0] if cronogramas else None
 
-    if not cronograma:
-        return {"ok": False, "status": 500, "error": "No hay un cronograma activo para este curso y sede."}
+            if not cronograma:
+                return {"ok": False, "status": 500, "error": "No hay un cronograma activo para este curso y sede."}
 
-    id_cronograma = cronograma["idCronograma"]
+            id_cronograma = cronograma["idCronograma"]
 
-    # Verificar si el alumno ya está inscripto en asistenciaCursos
-    query_inscripcion = """
-        SELECT 1
-        FROM asistenciaCursos
-        WHERE idAlumno = ? AND idCronograma = ?
-    """
-    inscripciones = await ejecutar_consulta_async(query_inscripcion, (user["idUsuario"], id_cronograma), fetch=True)
-    inscripto = inscripciones[0] if inscripciones else None
+            # Verificar inscripción
+            query_inscripcion = """
+                SELECT 1
+                FROM asistenciaCursos
+                WHERE idAlumno = ? AND idCronograma = ?
+            """
+            inscripciones = await db.ejecutar_consulta_async(query_inscripcion, (user["idUsuario"], id_cronograma), fetch=True, external_conn=conn)
+            inscripto = inscripciones[0] if inscripciones else None
 
-    if not inscripto:
-        return {"ok": False, "status": 403, "error": "El alumno no está inscripto en este curso."}
+            if not inscripto:
+                return {"ok": False, "status": 403, "error": "El alumno no está inscripto en este curso."}
 
-    # Registrar nueva asistencia (si querés registrar otra asistencia independiente)
-    query_asistencia = """
-        INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
-        VALUES (?, ?, ?)
-    """
-    await ejecutar_consulta_async(query_asistencia, (user["idUsuario"], id_cronograma, datetime.now()))
+            # Registrar asistencia
+            query_asistencia = """
+                INSERT INTO asistenciaCursos (idAlumno, idCronograma, fecha)
+                VALUES (?, ?, ?)
+            """
+            await db.ejecutar_consulta_async(
+                query_asistencia,
+                (user["idUsuario"], id_cronograma, datetime.now()),
+                external_conn=conn
+            )
 
-    return {"ok": True, "mensaje": "Asistencia registrada correctamente"}
+            await conn.commit()
+            return {"ok": True, "mensaje": "Asistencia registrada correctamente"}
+
+        except Exception as e:
+            await conn.rollback()
+            print("❌ Error registrando asistencia:", e)
+            return {"ok": False, "status": 500, "error": "Error al registrar asistencia."}
