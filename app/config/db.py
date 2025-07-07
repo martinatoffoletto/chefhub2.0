@@ -36,28 +36,44 @@ async def ejecutar_consulta_async(
     fetch: bool = False,
     external_conn: Optional[asyncodbc.Connection] = None
 ) -> Union[List[Dict[str, Any]], None]:
+    usar_conn_externa = external_conn is not None
     conn = external_conn or await pool.acquire()
+    cursor = None
+
     try:
-        async with conn.cursor() as cursor:
-            await cursor.execute(query, params or ())
-            if fetch:
-                columns = [col[0] for col in cursor.description]
-                rows = await cursor.fetchall()
-                resultado = [dict(zip(columns, row)) for row in rows]
-                return resultado
-            if not external_conn:
-                await conn.commit()
+        cursor = await conn.cursor()
+        await cursor.execute(query, params or ())
+
+        if fetch:
+            columns = [col[0] for col in cursor.description]
+            rows = await cursor.fetchall()
+            return [dict(zip(columns, row)) for row in rows]
+        else:
             return None
+
     except Exception as e:
-        if not external_conn:
-            try:
-                await conn.rollback()
-            except Exception:
-                pass
-        raise
+        try:
+            await conn.rollback()
+        except Exception as rollback_err:
+            print(f"⚠️ Error al hacer rollback: {rollback_err}")
+        raise e
+
     finally:
-        if not external_conn:
+        try:
+            if cursor:
+                await cursor.close()
+        except Exception as cursor_err:
+            print(f"⚠️ Error al cerrar cursor: {cursor_err}")
+
+        if not fetch:
+            try:
+                await conn.commit()
+            except Exception as commit_err:
+                print(f"⚠️ Error al hacer commit: {commit_err}")
+                raise commit_err
+
+        if not usar_conn_externa:
             try:
                 await pool.release(conn)
-            except Exception:
-                pass
+            except Exception as release_err:
+                print(f"⚠️ Error al liberar conexión: {release_err}")
