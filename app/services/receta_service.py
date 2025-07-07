@@ -389,6 +389,7 @@ async def borrar_receta_completa(id_receta: int):
 async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario: int) -> bool:
     try:
         async with db.pool.acquire() as conn:
+            # Obtener o insertar tipo
             query_tipo = "SELECT idTipo FROM tiposReceta WHERE descripcion = ?"
             resultado_tipo = await db.ejecutar_consulta_async(query_tipo, (data.tipo,), fetch=True, external_conn=conn)
 
@@ -403,6 +404,7 @@ async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario:
                 res_tipo = await db.ejecutar_consulta_async(insert_tipo, (data.tipo,), fetch=True, external_conn=conn)
                 id_tipo = res_tipo[0]["idTipo"]
 
+            # Actualizar receta principal
             query_update = """
                 UPDATE recetas
                 SET nombreReceta = ?, descripcionReceta = ?, porciones = ?, cantidadPersonas = ?, idTipo = ?
@@ -418,6 +420,7 @@ async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario:
                 id_usuario
             ), external_conn=conn)
 
+            # Ingredientes
             await db.ejecutar_consulta_async("DELETE FROM utilizados WHERE idReceta = ?", (id_receta,), external_conn=conn)
 
             for ing in data.ingredientes:
@@ -439,15 +442,44 @@ async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario:
                     VALUES (?, ?, ?, ?, ?)
                 """, (id_receta, id_ingrediente, ing.cantidad, ing.idUnidad, ing.observaciones), external_conn=conn)
 
-            await db.ejecutar_consulta_async("DELETE FROM multimedia WHERE idPaso IN (SELECT idPaso FROM pasos WHERE idReceta = ?)", (id_receta,), external_conn=conn)
-            await db.ejecutar_consulta_async("DELETE FROM pasos WHERE idReceta = ?", (id_receta,), external_conn=conn)
+            # Obtener pasos existentes
+            pasos_existentes = await db.ejecutar_consulta_async(
+                "SELECT idPaso, nroPaso FROM pasos WHERE idReceta = ?",
+                (id_receta,),
+                fetch=True,
+                external_conn=conn
+            )
+            pasos_db = {p["nroPaso"]: p["idPaso"] for p in pasos_existentes}
+            nros_nuevos = set(p.nroPaso for p in data.pasos)
+            nros_existentes = set(pasos_db.keys())
 
+            # Eliminar pasos que ya no están
+            for nroPaso in nros_existentes - nros_nuevos:
+                idPaso = pasos_db[nroPaso]
+                await db.ejecutar_consulta_async("DELETE FROM multimedia WHERE idPaso = ?", (idPaso,), external_conn=conn)
+                await db.ejecutar_consulta_async("DELETE FROM pasos WHERE idPaso = ?", (idPaso,), external_conn=conn)
+
+            # Insertar o actualizar pasos
             for paso in data.pasos:
-                await db.ejecutar_consulta_async("""
-                    INSERT INTO pasos (idReceta, nroPaso, texto)
-                    VALUES (?, ?, ?)
-                """, (id_receta, paso.nroPaso, paso.texto), external_conn=conn)
+                if paso.nroPaso in pasos_db:
+                    # Actualizar paso existente
+                    idPaso = pasos_db[paso.nroPaso]
+                    await db.ejecutar_consulta_async(
+                        "UPDATE pasos SET texto = ? WHERE idPaso = ?",
+                        (paso.texto, idPaso),
+                        external_conn=conn
+                    )
+                else:
+                    # Insertar nuevo paso
+                    res = await db.ejecutar_consulta_async("""
+                        INSERT INTO pasos (idReceta, nroPaso, texto)
+                        OUTPUT INSERTED.idPaso
+                        VALUES (?, ?, ?)
+                    """, (id_receta, paso.nroPaso, paso.texto), fetch=True, external_conn=conn)
+                    idPaso = res[0]["idPaso"]
 
+
+            # Insertar nuevo estado
             await db.ejecutar_consulta_async("""
                 INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
                 VALUES (?, GETDATE(), 'pendiente')
@@ -459,6 +491,7 @@ async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario:
     except Exception as e:
         print(f"❌ Error en actualizar_receta_completa: {e}")
         return False
+
 
 
 # Obtener calificaciones de una receta
