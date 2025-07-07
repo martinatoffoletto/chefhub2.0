@@ -20,7 +20,6 @@ async def get_user_cursos(current_user=Depends(obtener_usuario_actual)):
     if current_user["tipo_usuario"] != "Alumno":
         raise HTTPException(status_code=401, detail="No autorizado")
     cursos = await user_services.obtener_cursos_by_user_id(current_user)
-    print("Cursos del usuario:", cursos)
     return cursos
 
 
@@ -59,7 +58,6 @@ async def check_receta_favorita(receta_id, current_user=Depends(obtener_usuario_
 @router.get("/me/notificaciones")
 async def obtener_mis_notificaciones(current_user=Depends(obtener_usuario_actual)):
     notificaciones = await user_services.obtener_notificaciones_por_usuario(current_user["idUsuario"])
-    print(notificaciones)
     return {"notificaciones": notificaciones}
 
 

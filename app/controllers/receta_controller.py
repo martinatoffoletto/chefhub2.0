@@ -110,7 +110,6 @@ async def verify_receta(nombre: str, user=Depends(obtener_usuario_actual)):
 @router.post("/", status_code=200)
 async def post_receta(receta: RecetaIn,user=Depends(obtener_usuario_actual)):
     try:
-        print(receta)
         id_receta = await receta_service.crear_receta_completa(receta, user["idUsuario"])
         print("✅ Receta creada con ID:", id_receta)
         return {
