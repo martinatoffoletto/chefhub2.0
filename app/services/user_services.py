@@ -304,22 +304,22 @@ async def obtener_cursos_by_user_id(current_user: dict) -> List[Dict]:
             s.bonificacionCursos,
             s.tipoPromocion,
             s.promocionCursos,
-            -- Precio final aplicando bonificaciones y promociones multiplicativamente
             c.precio 
             * (1 - ISNULL(s.bonificacionCursos, 0) / 100)
             * (1 - ISNULL(s.promocionCursos, 0) / 100) AS precioFinal,
-            (
-                SELECT COUNT(*) 
-                FROM asistenciaCursos a2 
-                WHERE a2.idCronograma = cr.idCronograma 
-                AND a2.idAlumno = a.idAlumno
-            ) AS totalAsistencias
+            
+            COUNT(*) AS totalAsistencias
+
         FROM asistenciaCursos a
         JOIN cronogramaCursos cr ON a.idCronograma = cr.idCronograma
         JOIN cursos c ON cr.idCurso = c.idCurso
         JOIN sedes s ON cr.idSede = s.idSede
         WHERE a.idAlumno = ?
-
+        GROUP BY 
+            c.idCurso, c.descripcion, c.duracion, c.precio,
+            cr.idCronograma, cr.fechaInicio, cr.fechaFin,
+            s.nombreSede, s.idSede, s.bonificacionCursos, 
+            s.tipoPromocion, s.promocionCursos
     """
     return await db.ejecutar_consulta_async(query, [current_user["idUsuario"]], fetch=True)
 
