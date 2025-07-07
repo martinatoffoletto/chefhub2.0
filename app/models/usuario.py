@@ -1,6 +1,6 @@
-from typing import Optional, Union, Dict
+from typing import Optional
 from pydantic import BaseModel
-from app.config.db import ejecutar_consulta_async
+
 
 
 #acessos a bd agregar actualizar, eliminar, etc

@@ -1,8 +1,6 @@
 from app.models.usuario import *
-from app.models.asistenciaCurso import *
-from app.models.cronogramaCurso import *
-from app.models.curso import *
 from datetime import datetime
+from typing import Dict, List, Optional
 import app.config.db as db
 
 

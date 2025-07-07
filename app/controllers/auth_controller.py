@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Body
+from fastapi import APIRouter, HTTPException, status, Body
 from app.services import auth_service
 from app.services.auth_service import SECRET_KEY, ALGORITHM
 from jose import JWTError, jwt
@@ -7,9 +7,8 @@ import redis
 import random
 import json
 from app.models.usuario import Usuario
-from app.models.usuario import Alumno
 from app.models.usuario import Password
-from app.services.user_services import cambiar_contrasena, asignar_avatar_a_usuario, asignar_password_a_usuario
+from app.services.user_services import cambiar_contrasena, asignar_password_a_usuario
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0)
 router = APIRouter()

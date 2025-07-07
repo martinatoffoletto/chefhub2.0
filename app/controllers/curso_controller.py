@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.models.curso import *
+from typing import List, Dict, Optional
 from app.services import curso_services
 from app.services.auth_service import obtener_usuario_actual
 

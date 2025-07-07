@@ -1,6 +1,5 @@
-from typing import Optional, List, Dict
+from typing import Optional
 from pydantic import BaseModel
-from app.config.db import ejecutar_consulta_async
 
 class Calificacion(BaseModel):
     idCalificacion: Optional[int] = None

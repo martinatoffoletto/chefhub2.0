@@ -5,6 +5,7 @@ from app.models.calificacion import *
 import app.config.db as db
 from pathlib import Path
 from fastapi import UploadFile
+from typing import Optional,Dict
 from uuid import uuid4
 import re
 import aiofiles
@@ -481,9 +482,11 @@ async def actualizar_receta_completa(id_receta: int, data: RecetaIn, id_usuario:
 
             # Insertar nuevo estado
             await db.ejecutar_consulta_async("""
-                INSERT INTO estadoReceta (idReceta, fecha_creacion, estado)
-                VALUES (?, GETDATE(), 'pendiente')
-            """, (id_receta,), external_conn=conn)
+            UPDATE estadoReceta
+            SET estado = 'pendiente', fecha_creacion = GETDATE()
+            WHERE idReceta = ?
+        """, (id_receta,), external_conn=conn)
+
 
         print(f"✅ Receta actualizada con ID: {id_receta}")
         return True

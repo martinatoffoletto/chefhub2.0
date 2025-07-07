@@ -1,11 +1,8 @@
 # curso, sedes, inscripciones, ofertacursos  uso de modelos y logica de negocio
-from app.models.curso import *
-from app.models.asistenciaCurso import *
-from app.models.sede import *
-from app.models.cronogramaCurso import *
-from datetime import datetime
+from datetime import datetime,date
 from fastapi import HTTPException
 from decimal import Decimal
+from typing import Optional, List, Dict
 import app.config.db as db
 
 ########### LOGICA DE NEGOCIO CURSOS, SEDES Y OFERTAS ############
